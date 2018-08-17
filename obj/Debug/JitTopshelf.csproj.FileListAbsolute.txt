@@ -37,7 +37,6 @@ C:\Users\User\source\repos\JitTopshelf\JitTopshelf\bin\Debug\Serilog.Sinks.Conso
 C:\Users\User\source\repos\JitTopshelf\JitTopshelf\bin\Debug\Serilog.Sinks.File.xml
 C:\Users\User\source\repos\JitTopshelf\JitTopshelf\bin\Debug\Serilog.Sinks.RollingFile.xml
 C:\Users\User\source\repos\JitTopshelf\JitTopshelf\bin\Debug\Topshelf.xml
-C:\Users\User\source\repos\JitTopshelf\JitTopshelf\obj\Debug\JitTopshelf.csprojAssemblyReference.cache
 C:\Users\User\source\repos\JitTopshelf\JitTopshelf\obj\Debug\JitTopshelf.csproj.CoreCompileInputs.cache
 C:\Users\User\source\repos\JitTopshelf\JitTopshelf\obj\Debug\JitTopshelf.csproj.CopyComplete
 C:\Users\User\source\repos\JitTopshelf\JitTopshelf\obj\Debug\JitTopshelf.exe

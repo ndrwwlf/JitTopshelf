@@ -117,6 +117,7 @@
     <Compile Include="Dao\WthNormalParams.cs" />
     <Compile Include="JitAerisAndNormalsService.cs" />
     <Compile Include="Model\AccordResult.cs" />
+    <Compile Include="Model\BadWNRdngDataException.cs" />
     <Compile Include="Model\BalancePointPair.cs" />
     <Compile Include="Model\HeatingCoolingDegreeDays.cs" />
     <Compile Include="Model\WeatherData.cs" />

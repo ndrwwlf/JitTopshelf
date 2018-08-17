@@ -13,8 +13,6 @@ using Serilog;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace JitTopshelf.Scheduled
 {
@@ -23,7 +21,7 @@ namespace JitTopshelf.Scheduled
         private AerisJobParams _aerisJobParams;
         private IWeatherRepository _weatherRepository;
 
-        readonly DateTime fromDateStart = new DateTime(2015, 01, 15);
+        readonly DateTime _fromDateStart = new DateTime(2015, 01, 15);
 
         public void Execute(IJobExecutionContext context)
         {
@@ -116,7 +114,7 @@ namespace JitTopshelf.Scheduled
 
                     if (accord.FTestFailed)
                     {
-                        Log.Information($"Best Regression Model's F-Test failed... " +
+                        Log.Warning($"Best Regression Model's F-Test failed... " +
                             $"AccID/UtilID/UnitID: {normalParams.AccID}/{normalParams.UtilID}/{normalParams.UnitID}");
                     }
 
@@ -174,11 +172,15 @@ namespace JitTopshelf.Scheduled
                         }
                     }
                 }
+                catch (BadWNRdngDataException bdex)
+                {
+                    failCount++;
+                    Log.Warning(bdex.Message);
+                }
                 catch (Exception e)
                 {
                     failCount++;
-                    Log.Error($"AccID/UtilID/UnitID: {normalParams.AccID}/{normalParams.UtilID}/{normalParams.UnitID} >> {e.Message}");
-                    Log.Debug($"{e.StackTrace}");
+                    Log.Debug($"AccID/UtilID/UnitID: {normalParams.AccID}/{normalParams.UtilID}/{normalParams.UnitID} >> {e.Message} {e.StackTrace}");
                 }
             }
 
@@ -188,7 +190,7 @@ namespace JitTopshelf.Scheduled
             }
             else
             {
-                Log.Warning($"Finished PopulateWthNormalParams(). Rows Updated: {updateCount}. Rows Inserted: {insertCount}. Failures: {failCount}");
+                Log.Error($"Finished PopulateWthNormalParams(). Rows Updated: {updateCount}. Rows Inserted: {insertCount}. Failures: {failCount}");
             }
 
             UpdateWthExpUsage(newNormalParamsList);
@@ -207,27 +209,23 @@ namespace JitTopshelf.Scheduled
 
             foreach (WNRdngData reading in wNRdngData)
             {
-                try
+                if (reading.DateStart == DateTime.MinValue || reading.DateEnd == DateTime.MinValue)
                 {
-                    if (reading.DateStart == DateTime.MinValue || reading.DateEnd == DateTime.MinValue)
-                    {
-                        badData = true;
-                        throw new Exception($"MoID: {reading.MoID} >> DateStart and/or DateEnd is null for " +
-                            $"AccID/UtilID/UnitID: {reading.AccID}/{reading.UtilID}/{reading.UnitID}");
-                    }
-
+                    badData = true;
+                    Log.Debug($"MoID: {reading.MoID} >> DateStart and/or DateEnd is null for " +
+                        $"AccID/UtilID/UnitID: {reading.AccID}/{reading.UtilID}/{reading.UnitID}");
+                }
+                else
+                {
                     var t = reading.DateEnd.Subtract(reading.DateStart).Days;
                     daysInYear += t;
-                }
-                catch (Exception e)
-                {
-                    Log.Error(e.Message);
                 }
             }
 
             if (badData)
             {
-                throw new Exception($"Bad/null WNRdngData for AccID/UtilID/UnitID: {wNRdngData.First().AccID}/{wNRdngData.First().UtilID}/{wNRdngData.First().UnitID}.");
+                throw new BadWNRdngDataException($"Bad/null WNRdngData for AccID/UtilID/UnitID: " +
+                    $"{wNRdngData.First().AccID}/{wNRdngData.First().UtilID}/{wNRdngData.First().UnitID}.");
             }
 
             foreach (WNRdngData reading in wNRdngData)
@@ -244,7 +242,7 @@ namespace JitTopshelf.Scheduled
 
                 if (weatherDataList.Count != daysInReading)
                 {
-                    Log.Error($"WeatherData.Count != daysInReading: " + weatherDataList.Count + " "
+                    Log.Warning($"WeatherData.Count != daysInReading: " + weatherDataList.Count + " "
                         + daysInReading + " AccID: " + reading.AccID + " UtilID: " + reading.UtilID + " UnitID: " + reading.UnitID + " Zip: " + reading.Zip + " MoID: " + reading.MoID);
                 }
 
@@ -442,9 +440,9 @@ namespace JitTopshelf.Scheduled
                         }
                         catch (Exception e)
                         {
-                            Log.Debug($"Multiple Linear Regression Analysis errors are common when certain heating/cooling BPs and/or " +
-                                $"actual usage(Units from a Reading) provide insignificant data. " +
-                                $"AccID/UtilID/UnitID: {normalParamsKey.AccID}/{normalParamsKey.UtilID}/{normalParamsKey.UnitID} {e.Message} {e.StackTrace}");
+                            Log.Debug($"Multiple Linear Regression Analysis exceptions are common when certain heating/cooling BPs and/or insignificant" +
+                                $"actual usage(Units from a Reading) provide insufficient data. " +
+                                $"AccID/UtilID/UnitID: {normalParamsKey.AccID}/{normalParamsKey.UtilID}/{normalParamsKey.UnitID} >> {e.Message} {e.StackTrace}");
                         }
                     }
                     else if (_pointPair.HeatingBalancePoint > 0)
@@ -532,8 +530,7 @@ namespace JitTopshelf.Scheduled
                 }
                 catch (Exception e)
                 {
-                    Log.Error(normalParamsKey.AccID + " " + normalParamsKey.UtilID + " " + normalParamsKey.UnitID + " " + e.Message);
-                    Log.Debug(e.StackTrace);
+                    Log.Debug($"AccID/UtilID/UnitID: {normalParamsKey.AccID}/{normalParamsKey.UtilID}/{normalParamsKey.UnitID} >> {e.Message} {e.StackTrace}");
                 }
             }
 
@@ -587,7 +584,7 @@ namespace JitTopshelf.Scheduled
         {
             Log.Information("Starting UpdateWthExpUsage()...");
 
-            string fromDateStartStr = $"{fromDateStart.Month}-{fromDateStart.Day}-{fromDateStart.Year}";
+            string fromDateStartStr = $"{_fromDateStart.Month}-{_fromDateStart.Day}-{_fromDateStart.Year}";
 
             int updateCount = 0;
             int insertCount = 0;
@@ -645,8 +642,7 @@ namespace JitTopshelf.Scheduled
                         catch (Exception e)
                         {
                             failCount++;
-                            Log.Error($"RdngID: {result.RdngID} {e.Message}");
-                            Log.Debug($"{e.StackTrace}");
+                            Log.Debug($"Cannot calculate ExpUsage for RdngID: {result.RdngID} >> {e.Message}");
                         }
                     }
                 }
@@ -659,11 +655,13 @@ namespace JitTopshelf.Scheduled
 
             if (failCount == 0)
             {
-                Log.Information($"Finished UpdateWthExpUsage(). Inserts: {insertCount}, Updates: {updateCount}, Failures: {failCount}.");
+                Log.Information($"Finished UpdateWthExpUsage() on Readings going back to {_fromDateStart.ToShortDateString()}. " +
+                    $"Inserts: {insertCount}, Updates: {updateCount}, Failures: {failCount}.");
             }
             else
             {
-                Log.Warning($"Finished UpdateWthExpUsage(). Inserts: {insertCount}, Updates: {updateCount}, Failures: {failCount}.");
+                Log.Warning($"Finished UpdateWthExpUsage() on Readings goin back to {_fromDateStart.ToShortDateString()}. " +
+                    $"Inserts: {insertCount}, Updates: {updateCount}, Failures: {failCount}.");
             }
         }
 
@@ -688,25 +686,25 @@ namespace JitTopshelf.Scheduled
             {
                 Log.Debug($"Update WthExpUsage >> RdngID: {result.RdngID} WthExpUsage: {resultAsDecimal} ... B1: {result.B1} B2: {result.B2} " +
                     $"B3: {result.B3} Hdd: {heatingCoolingDegreeDays.HDD} B4: {result.B4} B5: {result.B5} Cdd: {heatingCoolingDegreeDays.CDD} " +
-                    $"RdngUnitID: {result.RUnitID} WthNormalParamsUnitID: {result.WnpUnitID}");
+                    $"AccID/UtilID/UnitID: {result.AccID}/{result.UtilID}/{result.UnitID}.");
             }
             else if (existed && !success)
             {
                 Log.Error($"FAILED attempt: Update WthExpUsage >> RdngID: {result.RdngID} WthExpUsage: {resultAsDecimal} ... B1: {result.B1} B2: " +
                     $"{result.B2} B3: {result.B3} Hdd: {heatingCoolingDegreeDays.HDD} B4: {result.B4} B5: {result.B5} Cdd: {heatingCoolingDegreeDays.CDD} " +
-                    $"RdngUnitID: {result.RUnitID} WthNormalParamsUnitID: {result.WnpUnitID}");
+                    $"AccID/UtilID/UnitID: {result.AccID}/{result.UtilID}/{result.UnitID}.");
             }
             else if (!existed && success)
             {
                 Log.Debug($"Inserted into WthExpUsage >> RdngID: {result.RdngID} WthExpUsage: {resultAsDecimal} ... B1: {result.B1} B2: {result.B2} " +
                     $"B3: {result.B3} Hdd: {heatingCoolingDegreeDays.HDD} B4: {result.B4} B5: {result.B5} Cdd: {heatingCoolingDegreeDays.CDD} " +
-                    $"RdngUnitID: {result.RUnitID} WthNormalParamsUnitID: {result.WnpUnitID}");
+                    $"AccID/UtilID/UnitID: {result.AccID}/{result.UtilID}/{result.UnitID}.");
             }
             else if (!existed && !success)
             {
                 Log.Error($"FAILED attempt: Insert into WthExpUsage >> RdngID: {result.RdngID} WthExpUsage: {resultAsDecimal} ... B1: {result.B1} B2: " +
                     $"{result.B2} B3: {result.B3} Hdd: {heatingCoolingDegreeDays.HDD} B4: {result.B4} B5: {result.B5} Cdd: {heatingCoolingDegreeDays.CDD} " +
-                    $"RdngUnitID: {result.RUnitID} WthNormalParamsUnitID: {result.WnpUnitID}");
+                    $"AccID/UtilID/UnitID: {result.AccID}/{result.UtilID}/{result.UnitID}.");
             }
 
             return new bool[] { success, existed };

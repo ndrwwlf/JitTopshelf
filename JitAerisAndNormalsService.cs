@@ -42,7 +42,6 @@ namespace JitTopshelf
 
             ITrigger aerisTrigger = TriggerBuilder.Create()
                    .WithSchedule(CronScheduleBuilder.DailyAtHourAndMinute(07, 11))
-                   //.WithSimpleSchedule(x => x.WithIntervalInSeconds(5).WithRepeatCount(0))
                    //.StartNow()
                    .Build();
 
@@ -51,8 +50,7 @@ namespace JitTopshelf
             IJobDetail regressionJob = JobBuilder.Create<WNRdngData01RegressionJob>().Build();
 
             ITrigger regressionTrigger = TriggerBuilder.Create()
-                   .WithSchedule(CronScheduleBuilder.DailyAtHourAndMinute(19, 01))
-                   //.WithSimpleSchedule(x => x.WithIntervalInSeconds(5).WithRepeatCount(0))
+                   .WithSchedule(CronScheduleBuilder.DailyAtHourAndMinute(19, 00))
                    //.StartNow()
                    //.StartAt(DateTime.Now.AddSeconds(8))
                    .Build();

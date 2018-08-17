@@ -76,7 +76,7 @@ namespace JitTopshelf.Scheduled
             DateTime targetDate = DateTime.Now.AddDays(i);
                 List<string> zipCodes = _weatherRepository.GetDistinctZipCodes();
 
-            Log.Information($"Starting GatherDailyWeatherData(int {i}) for targetDate: {targetDate} and {zipCodes.Count} zip codes...");
+            Log.Information($"Starting GatherDailyWeatherData(int {i}) for targetDate: {targetDate.ToShortDateString()} and {zipCodes.Count} zip codes...");
 
             foreach (string zipCode in zipCodes)
             {
@@ -108,8 +108,8 @@ namespace JitTopshelf.Scheduled
                     }
                     catch (Exception e)
                     {
-                        Log.Error(e.Message);
-                        Log.Error(e.StackTrace);
+                        Log.Error($"Zip: {zipCode}, TargetDate: {targetDate} >>  {e.Message}");
+                        Log.Debug(e.StackTrace);
                     }
                 }
             };
@@ -174,22 +174,25 @@ namespace JitTopshelf.Scheduled
                     {
                         if (result.DateStart == DateTime.MinValue || result.DateEnd == DateTime.MinValue)
                         {
-                            throw new Exception($"RdngID: {result.RdngID} >> DateStart and/or DateEnd is null.");
+                            throw new Exception("DateStart and/or DateEnd is null.");
                         }
 
                         List<WeatherData> weatherDataList = _weatherRepository.GetWeatherDataByZipStartAndEndDate(result.Zip, result.DateStart, result.DateEnd);
+
                         if (weatherDataList.Count != result.Days)
                         {
-                            Log.Error($"WeatherDataList.Count != reading.Days; WeatherDataList.Count = {weatherDataList.Count} reading.Days = {result.Days}. " +
-                                $"RdngID: {result.RdngID}.");
+                            throw new Exception($"WeatherDataList.Count != reading.Days; WeatherDataList.Count = {weatherDataList.Count}, " +
+                                $"reading.Days = {result.Days}.");
                         }
+
                         HeatingCoolingDegreeDays heatingCoolingDegreeDays = HeatingCoolingDegreeDaysValueOf(result, weatherDataList);
 
                         DoCalculation(result, heatingCoolingDegreeDays);
                     }
                     catch (Exception e)
                     {
-                        Log.Error("RdngID: " + result.RdngID + " " + e.Message + e.StackTrace);
+                        Log.Error($"Cannot calculate ExpUsage for RdngID: {result.RdngID} >> {e.Message}");
+                        Log.Debug(e.StackTrace);
                     }
                 }
 
@@ -221,7 +224,7 @@ namespace JitTopshelf.Scheduled
             {
                 Log.Debug($"Inserted into WthExpUsage >> RdngID: {result.RdngID} WthExpUsage: {resultAsDecimal} ... B1: {result.B1} B2: {result.B2} " +
                     $"B3: {result.B3} Hdd: {heatingCoolingDegreeDays.HDD} B4: {result.B4} B5: {result.B5} Cdd: {heatingCoolingDegreeDays.CDD} " +
-                    $"RdngUnitID: {result.RUnitID} WthNormalParamsUnitID: {result.WnpUnitID}");
+                    $"AccID/UtilID/UnitID: {result.AccID}/{result.UtilID}/{result.UnitID}");
 
                 actualWthExpUsageInserts++;
             }
@@ -229,7 +232,7 @@ namespace JitTopshelf.Scheduled
             {
                 Log.Error($"FAILED attempt: insert into WthExpUsage >> RdngID: {result.RdngID} WthExpUsage: {resultAsDecimal} ... B1: {result.B1} B2: " +
                     $"{result.B2} B3: {result.B3} Hdd: {heatingCoolingDegreeDays.HDD} B4: {result.B4} B5: {result.B5} Cdd: {heatingCoolingDegreeDays.CDD} " +
-                    $"RdngUnitID: {result.RUnitID} WthNormalParamsUnitID: {result.WnpUnitID}");
+                    $"AccID/UtilID/UnitID: {result.AccID}/{result.UtilID}/{result.UnitID}");
             }
         }
 
@@ -248,7 +251,7 @@ namespace JitTopshelf.Scheduled
             {
                 if (!weatherData.AvgTmp.HasValue)
                 {
-                    throw new Exception("WeatherData.AvgTmp is null for " + weatherData.ZipCode + " on " + weatherData.RDate);
+                    throw new Exception($"WeatherData.AvgTmp is null for {weatherData.ZipCode} on {weatherData.RDate}");
                 }
                 else if (result.B5 > 0)
                 {

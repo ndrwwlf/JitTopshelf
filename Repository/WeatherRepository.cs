@@ -108,12 +108,12 @@ namespace JitTopshelf.Repository
             string DateEnd = GetMostRecentWeatherDataDate().AddDays(1).ToShortDateString();
             var data = new List<ReadingsQueryResult>();
 
-            string Sql = @"select r.RdngID, b.Zip, r.DateStart, r.DateEnd, r.Days, r.UnitID as rUnitID, 
-                                  wnp.UnitID as wnpUnitID, wnp.B1, wnp.B2, wnp.B3, wnp.B4, wnp.B5
+            string Sql = @"select r.RdngID, b.Zip, r.DateStart, r.DateEnd, r.Days,  
+                                  wnp.AccID, wnp.UtilID, wnp.UnitID, wnp.B1, wnp.B2, wnp.B3, wnp.B4, wnp.B5
                             from Readings r 
-                               join WthNormalParams wnp on wnp.AccID = r.AccID
-                                                        and wnp.UtilID = r.UtilID
-                                                        and wnp.UnitID = r.UnitID
+                            join WthNormalParams wnp on wnp.AccID = r.AccID
+                                                    and wnp.UtilID = r.UtilID
+                                                    and wnp.UnitID = r.UnitID
                             join Accounts a on a.AccID = r.AccID
                             join Buildings b on b.BldID = a.BldID
                             where not exists 
@@ -134,12 +134,12 @@ namespace JitTopshelf.Repository
             string DateEnd = GetMostRecentWeatherDataDate().AddDays(1).ToShortDateString();
             var data = new List<ReadingsQueryResult>();
 
-            string Sql = @"select r.RdngID, b.Zip, r.DateStart, r.DateEnd, r.Days, r.UnitID as rUnitID, 
-                                  wnp.UnitID as wnpUnitID, wnp.B1, wnp.B2, wnp.B3, wnp.B4, wnp.B5
+            string Sql = @"select r.RdngID, b.Zip, r.DateStart, r.DateEnd, r.Days,  
+                                  wnp.AccID, wnp.UtilID, wnp.UnitID, wnp.B1, wnp.B2, wnp.B3, wnp.B4, wnp.B5
                             from Readings r 
-                               join WthNormalParams wnp on wnp.AccID = r.AccID
-                                                        and wnp.UtilID = r.UtilID
-                                                        and wnp.UnitID = r.UnitID
+                            join WthNormalParams wnp on wnp.AccID = r.AccID
+                                                    and wnp.UtilID = r.UtilID
+                                                    and wnp.UnitID = r.UnitID
                             join Accounts a on a.AccID = r.AccID
                             join Buildings b on b.BldID = a.BldID
                             where 

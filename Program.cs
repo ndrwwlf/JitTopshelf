@@ -49,7 +49,7 @@ namespace JitTopshelf
 
                 config.SetServiceName("WeatherRegressionService");
                 config.SetDescription("WeatherJob calls Aeris for new Weather Data at 7:11 AM then queries JITSQL02 for new Readings and calculates their WthExpUsage. \n" +
-                    "WNRdngData01RegressionJob fires at 7:01 PM. The WNRdngData01 stored procedure is executed to find new Acc/Util/UnitIDs in need of regression " +
+                    "WNRdngData01RegressionJob fires at 7:00 PM. The WNRdngData01 stored procedure is executed to find new Acc/Util/UnitIDs in need of regression " +
                     "analysis. For each new Acc/Util/UnitID the best regression model is found and inserted into/updated in WthNormalParams. Then its respective " +
                     "Readings' WthExpUsages are calculated using the new regression model and insterted into/updated in WthExpUsage. \n" +
                     "The daily logs contain Debug-level logging, WeatherData insert info, and WthExpUsage insert/update info.");
