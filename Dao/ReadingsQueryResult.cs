@@ -16,12 +16,13 @@ namespace JitTopshelf.Dao
         public DateTime DateStart { get; set; }
         public DateTime DateEnd { get; set; }
         public int Days { get; set; }
-        public int Units { get; set; }
+        public int? Units { get; set; }
         public decimal ExpUsage { get; set; }
         public double B1 { get; set; }
         public double B2 { get; set; }
         public int B3 { get; set; }
         public double B4 { get; set; }
         public int B5 { get; set; }
+        public double? R2 { get; set; }
     }
 }

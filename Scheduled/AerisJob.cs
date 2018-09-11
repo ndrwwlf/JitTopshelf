@@ -30,7 +30,7 @@ namespace JitTopshelf.Scheduled
         private int expectedHistoricalWeatherDataInserts;
         private int actualHistoricalWeatherDataInserts;
 
-        readonly DateTime fromDateStart = new DateTime(2015, 01, 01);
+        private readonly DateTime fromDateStart = new DateTime(2015, 01, 01);
 
         public void Execute(IJobExecutionContext context)
         {
@@ -172,17 +172,42 @@ namespace JitTopshelf.Scheduled
                 {
                     try
                     {
+                        if (!result.R2.HasValue || result.R2.Value > 1)
+                        {
+                            continue;
+                        }
+
+                        if (result.R2.Value < 0.7500)
+                        {
+                            bool successNoModel = _weatherRepository.InsertWthExpUsage(result.RdngID, result.Units.Value);
+                            actualWthExpUsageInserts++;
+                            if (successNoModel)
+                            {
+                                Log.Debug($"Inserted into WthExpUsage (No Weather Model) >> RdngID: {result.RdngID} ExpUsage: {result.Units.Value} << " +
+                                            $"AccID/UtilID/UnitID: {result.AccID}/{result.UtilID}/{result.UnitID}, Actual Units: {result.Units}.");
+                            }
+                            else
+                            {
+                                Log.Error($"Failed attempt: Insert into WthExpUsage (No Weather Model) " +
+                                            $">> RdngID: {result.RdngID} ExpUsage: {result.Units.Value} << " +
+                                            $"AccID/UtilID/UnitID: {result.AccID}/{result.UtilID}/{result.UnitID}, Actual Units: {result.Units}");
+                            }
+                            continue;
+                        }
+
                         if (result.DateStart == DateTime.MinValue || result.DateEnd == DateTime.MinValue)
                         {
                             throw new Exception("DateStart and/or DateEnd is null.");
                         }
 
+                        int daysInReading = result.DateEnd.Subtract(result.DateStart).Days;
+
                         List<WeatherData> weatherDataList = _weatherRepository.GetWeatherDataByZipStartAndEndDate(result.Zip, result.DateStart, result.DateEnd);
 
-                        if (weatherDataList.Count != result.Days)
+                        if (weatherDataList.Count != daysInReading)
                         {
-                            throw new Exception($"WeatherDataList.Count != reading.Days; WeatherDataList.Count = {weatherDataList.Count}, " +
-                                $"reading.Days = {result.Days}.");
+                            throw new Exception($"WeatherDataList.Count != daysInReading; WeatherDataList.Count = {weatherDataList.Count}, " +
+                                $"daysInReading = {daysInReading}.");
                         }
 
                         HeatingCoolingDegreeDays heatingCoolingDegreeDays = HeatingCoolingDegreeDaysValueOf(result, weatherDataList);
@@ -224,7 +249,7 @@ namespace JitTopshelf.Scheduled
             {
                 Log.Debug($"Inserted into WthExpUsage >> RdngID: {result.RdngID} WthExpUsage: {resultAsDecimal} ... B1: {result.B1} B2: {result.B2} " +
                     $"B3: {result.B3} Hdd: {heatingCoolingDegreeDays.HDD} B4: {result.B4} B5: {result.B5} Cdd: {heatingCoolingDegreeDays.CDD} " +
-                    $"AccID/UtilID/UnitID: {result.AccID}/{result.UtilID}/{result.UnitID}");
+                    $"AccID/UtilID/UnitID: {result.AccID}/{result.UtilID}/{result.UnitID}, R2: {result.R2}.");
 
                 actualWthExpUsageInserts++;
             }
@@ -232,7 +257,7 @@ namespace JitTopshelf.Scheduled
             {
                 Log.Error($"FAILED attempt: insert into WthExpUsage >> RdngID: {result.RdngID} WthExpUsage: {resultAsDecimal} ... B1: {result.B1} B2: " +
                     $"{result.B2} B3: {result.B3} Hdd: {heatingCoolingDegreeDays.HDD} B4: {result.B4} B5: {result.B5} Cdd: {heatingCoolingDegreeDays.CDD} " +
-                    $"AccID/UtilID/UnitID: {result.AccID}/{result.UtilID}/{result.UnitID}");
+                    $"AccID/UtilID/UnitID: {result.AccID}/{result.UtilID}/{result.UnitID}, R2: {result.R2}");
             }
         }
 

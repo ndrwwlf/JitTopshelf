@@ -16,7 +16,7 @@ namespace JitTopshelf
         public void Start()
         {
             string userDir = "C:\\Users\\workweek";
-            //string userDir = "C:\\Users\\User";
+            //string userDir = "C:\\Users\\andy";
 
             Log.Logger = new LoggerConfiguration()
             .MinimumLevel.Debug()
@@ -25,8 +25,8 @@ namespace JitTopshelf
             .MinimumLevel.Override("Quartz", LogEventLevel.Error)
             .Enrich.FromLogContext()
             //to outsite of project
-            .WriteTo.File(userDir + "/Logs/MasterLog.txt", restrictedToMinimumLevel: LogEventLevel.Information, rollOnFileSizeLimit: true)
-            .WriteTo.RollingFile(userDir + "/Logs/Daily/log-{Date}.txt", retainedFileCountLimit: null)
+            .WriteTo.File(userDir + "/Logs/MasterLog.txt", restrictedToMinimumLevel: LogEventLevel.Information, rollOnFileSizeLimit: true, shared: true)
+            .WriteTo.RollingFile(userDir + "/Logs/Daily/log-{Date}.txt", retainedFileCountLimit: 60, shared: true)
             .WriteTo.Console()
             .CreateLogger();
 
@@ -52,7 +52,7 @@ namespace JitTopshelf
             ITrigger regressionTrigger = TriggerBuilder.Create()
                    .WithSchedule(CronScheduleBuilder.DailyAtHourAndMinute(19, 00))
                    //.StartNow()
-                   //.StartAt(DateTime.Now.AddSeconds(8))
+                   //.StartAt(DateTime.Now.AddSeconds(18))
                    .Build();
 
             scheduler.ScheduleJob(regressionJob, regressionTrigger);

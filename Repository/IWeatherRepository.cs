@@ -29,5 +29,7 @@ namespace JitTopshelf.Repository
         bool UpdateWthNormalParams(WthNormalParams normalParams);
         bool GetWthExpUsageExists(int RdngID);
         bool UpdateWthExpUsage(int RdngID, decimal value);
+
+        void ClearWthNormalParams();
     }
 }

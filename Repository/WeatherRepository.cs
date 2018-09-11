@@ -108,8 +108,8 @@ namespace JitTopshelf.Repository
             string DateEnd = GetMostRecentWeatherDataDate().AddDays(1).ToShortDateString();
             var data = new List<ReadingsQueryResult>();
 
-            string Sql = @"select r.RdngID, b.Zip, r.DateStart, r.DateEnd, r.Days,  
-                                  wnp.AccID, wnp.UtilID, wnp.UnitID, wnp.B1, wnp.B2, wnp.B3, wnp.B4, wnp.B5
+            string Sql = @"select r.RdngID, b.Zip, r.DateStart, r.DateEnd, r.Days, r.Units, 
+                                  wnp.AccID, wnp.UtilID, wnp.UnitID, wnp.B1, wnp.B2, wnp.B3, wnp.B4, wnp.B5, wnp.R2 
                             from Readings r 
                             join WthNormalParams wnp on wnp.AccID = r.AccID
                                                     and wnp.UtilID = r.UtilID
@@ -121,6 +121,7 @@ namespace JitTopshelf.Repository
                                     where weu.RdngID = r.RdngID)
                             and r.DateStart >= @DateStart
                             and r.DateEnd <= @DateEnd
+                            and wnp.R2 is not null 
                             order by DateStart asc";
 
             using (IDbConnection db = new SqlConnection(_jitWebData3ConnectionString))
@@ -134,7 +135,7 @@ namespace JitTopshelf.Repository
             string DateEnd = GetMostRecentWeatherDataDate().AddDays(1).ToShortDateString();
             var data = new List<ReadingsQueryResult>();
 
-            string Sql = @"select r.RdngID, b.Zip, r.DateStart, r.DateEnd, r.Days,  
+            string Sql = @"select r.RdngID, b.Zip, r.DateStart, r.DateEnd, r.Days, r.Units,   
                                   wnp.AccID, wnp.UtilID, wnp.UnitID, wnp.B1, wnp.B2, wnp.B3, wnp.B4, wnp.B5
                             from Readings r 
                             join WthNormalParams wnp on wnp.AccID = r.AccID
@@ -152,7 +153,9 @@ namespace JitTopshelf.Repository
 
             using (IDbConnection db = new SqlConnection(_jitWebData3ConnectionString))
             {
-                return db.Query<ReadingsQueryResult>(Sql, new { DateStart, DateEnd }).AsList();
+                return db.Query<ReadingsQueryResult>(Sql, new {
+                    normalParams.AccID, normalParams.UtilID, normalParams.UnitID, DateStart, DateEnd
+                }).AsList();
             }
         }
 
@@ -338,6 +341,27 @@ namespace JitTopshelf.Repository
             }
 
             return (rowsAffected == 1);
+        }
+
+        public void ClearWthNormalParams()
+        {
+            var oldPs = new List<WthNormalParams>();
+
+            using (IDbConnection db = new SqlConnection(_jitWebData3ConnectionString))
+            {
+                oldPs =  db.Query<WthNormalParams>("Select * from WthNormalParams").AsList();
+            }
+
+            foreach(WthNormalParams p in oldPs)
+            {
+                string sql = "Update WthNormalParams Set B1 = null, B2 = null, B3 = null, B4 = null, B5 = null, R2 = null " +
+                    "where AccID = @AccID and UtilID = @UtilID and UnitID = @UnitID";
+
+                using (IDbConnection db = new SqlConnection(_jitWebData3ConnectionString))
+                {
+                    db.Execute(sql, new { p.AccID, p.UtilID, p.UnitID });
+                }
+            }
         }
     }
 }
