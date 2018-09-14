@@ -21,7 +21,9 @@ namespace JitTopshelf.Scheduled
         private AerisJobParams _aerisJobParams;
         private IWeatherRepository _weatherRepository;
 
-        readonly DateTime _fromDateStart = new DateTime(2015, 01, 15);
+        //readonly DateTime _fromDateStart = new DateTime(2015, 01, 15);
+
+        private readonly int _MoID = 301;
 
         public void Execute(IJobExecutionContext context)
         {
@@ -31,14 +33,14 @@ namespace JitTopshelf.Scheduled
             Log.Information("Starting WNRdngData01RegressionJob...");
             //var regressionWatch = System.Diagnostics.Stopwatch.StartNew();
 
-            _weatherRepository.ClearWthNormalParams();
+            //_weatherRepository.ClearWthNormalParams();
 
             PopulateWthNormalParams();
 
             //regressionWatch.Stop();
             //var t = regressionWatch.Elapsed;
             //Log.Information("Finished WNRdngData01RegressionJob. Time elapsed: " + t.ToString() +"\n\n");
-            Log.Information("Finished WNRdngData01RegressionJob. \n\n");
+            Log.Information("Finished WNRdngData01RegressionJob. \n");
         }
 
         private void PopulateWthNormalParams()
@@ -49,7 +51,11 @@ namespace JitTopshelf.Scheduled
 
             List<WthNormalParams> newNormalParamsList = new List<WthNormalParams>();
 
+            List<WthNormalParams> modelsWithNotTwelveReadings = new List<WthNormalParams>();
+
             var wNRdngDataGroups = allWNRdngData.GroupBy(s => new { s.AccID, s.UtilID, s.UnitID });
+
+            //List<WNRdngData> heyy = wNRdngDataGroups.Contains(s => new { })
 
             int updateCount = 0;
             int insertCount = 0;
@@ -58,11 +64,6 @@ namespace JitTopshelf.Scheduled
             foreach (var wNRdngGroup in wNRdngDataGroups)
             {
                 List<WNRdngData> wNRdngList = wNRdngGroup.OrderBy(s => s.MoID).ToList();
-
-                if (wNRdngList.Count != 12)
-                {
-                    Log.Warning($"wNRdngList != 12 .. {wNRdngList.Count} Readings. Still proceeding...");
-                }
 
                 WNRdngData lastRead = wNRdngList.LastOrDefault();
 
@@ -77,6 +78,12 @@ namespace JitTopshelf.Scheduled
                     EMoID = lastRead.EMoID,
                     MoCt = lastRead.MoCt
                 };
+
+                if (wNRdngList.Count != 12)
+                {
+                    modelsWithNotTwelveReadings.Add(normalParams);
+                    Log.Warning($"wNRdngList != 12 .. {wNRdngList.Count} Readings. Still proceeding...");
+                }
 
                 bool normalParamsExists = _weatherRepository.GetWthNormalParamsExists(normalParams);
 
@@ -122,33 +129,27 @@ namespace JitTopshelf.Scheduled
 
                     AccordResult accord = CalculateLinearRegression(allBalancePointStatsFromYear, normalParams);
 
-                    if (accord.R2Accord < 0.7500)
-                    {
-                        success = UpdateOrInsertWthNormalParams(normalParams);
+                    //if (accord.R2Accord < 0.7500)
+                    //{
+                    //    success = UpdateOrInsertWthNormalParams(normalParams);
 
-                        if (success && normalParamsExists)
-                        {
-                            newNormalParamsList.Add(normalParams);
-                            updateCount++;
-                        }
-                        else if (success && !normalParamsExists)
-                        {
-                            newNormalParamsList.Add(normalParams);
-                            insertCount++;
-                        }
-                        else
-                        {
-                            failCount++;
-                        }
+                    //    if (success && normalParamsExists)
+                    //    {
+                    //        newNormalParamsList.Add(normalParams);
+                    //        updateCount++;
+                    //    }
+                    //    else if (success && !normalParamsExists)
+                    //    {
+                    //        newNormalParamsList.Add(normalParams);
+                    //        insertCount++;
+                    //    }
+                    //    else
+                    //    {
+                    //        failCount++;
+                    //    }
 
-                        continue;
-                    }
-
-                    if (accord.FTestFailed)
-                    {
-                        Log.Warning($"Best Regression Model's F-Test failed... " +
-                            $"AccID/UtilID/UnitID: {normalParams.AccID}/{normalParams.UtilID}/{normalParams.UnitID}");
-                    }
+                    //    continue;
+                    //}
 
                     normalParams.B1 = decimal.Round(Convert.ToDecimal(accord.Intercept), 9, MidpointRounding.AwayFromZero);
 
@@ -175,6 +176,12 @@ namespace JitTopshelf.Scheduled
                         normalParams.R2 = decimal.Round(Convert.ToDecimal(accord.R2Accord), 9, MidpointRounding.AwayFromZero);
                     }
 
+                    if (accord.FTestFailed)
+                    {
+                        Log.Warning($"AccID/UtilID/UnitID: {normalParams.AccID}/{normalParams.UtilID}/{normalParams.UnitID}: " +
+                            $"Best Regression Model's F-Test failed and model was not rejected. R2 = {normalParams.R2}");
+                    }
+
                     success = UpdateOrInsertWthNormalParams(normalParams);
 
                     if (success && normalParamsExists)
@@ -191,35 +198,6 @@ namespace JitTopshelf.Scheduled
                     {
                         failCount++;
                     }
-
-                    //if (normalParamsExists)
-                    //{
-                    //    bool success = _weatherRepository.UpdateWthNormalParams(normalParams);
-
-                    //    if (success)
-                    //    {
-                    //        newNormalParamsList.Add(normalParams);
-                    //        updateCount++;
-                    //    }
-                    //    else
-                    //    {
-                    //        failCount++;
-                    //    }
-                    //}
-                    //else
-                    //{
-                    //    bool success = _weatherRepository.InsertWthNormalParams(normalParams);
-
-                    //    if (success)
-                    //    {
-                    //        newNormalParamsList.Add(normalParams);
-                    //        insertCount++;
-                    //    }
-                    //    else
-                    //    {
-                    //        failCount++;
-                    //    }
-                    //}
                 }
                 catch (BadWNRdngDataException bdex)
                 {
@@ -231,6 +209,11 @@ namespace JitTopshelf.Scheduled
                     failCount++;
                     Log.Debug($"AccID/UtilID/UnitID: {normalParams.AccID}/{normalParams.UtilID}/{normalParams.UnitID} >> {e.Message} {e.StackTrace}");
                 }
+            }
+
+            foreach(WthNormalParams normalParams in modelsWithNotTwelveReadings)
+            {
+                Log.Warning($"AccID/UtilID/UnitID: {normalParams.AccID}/{normalParams.UtilID}/{normalParams.UnitID} >> This accepted model did not have 12 readings from SP. ");
             }
 
             if (failCount == 0)
@@ -443,17 +426,17 @@ namespace JitTopshelf.Scheduled
                             UseIntercept = false
                         };
 
-                        //double r2 = MathNet.Numerics.GoodnessOfFit.CoefficientOfDetermination(
-                        //    onesVector.Select(x => x * modelParams[0]), fullYDataDailyAvg);
+                        double r2 = MathNet.Numerics.GoodnessOfFit.CoefficientOfDetermination(
+                            onesVector.Select(x => x * modelParams[0]), fullYDataDailyAvg);
 
                         AccordResult accordResult = new AccordResult()
                         {
-                            //IsSimpleSingleRegression = true,
-                            //HeatingBP = _pointPair.HeatingBalancePoint,
-                            //CoolingBP = _pointPair.CoolingBalancePoint,
-                            //Intercept = modelParams[0],
-                            //R2Accord = r2,
-                            R2Accord = 0
+                            IsSimpleSingleRegression = true,
+                            HeatingBP = _pointPair.HeatingBalancePoint,
+                            CoolingBP = _pointPair.CoolingBalancePoint,
+                            Intercept = modelParams[0],
+                            R2Accord = r2,
+                            //R2Accord = 0
                         };
 
                         accordResults.Add(accordResult);
@@ -489,7 +472,20 @@ namespace JitTopshelf.Scheduled
 
                             };
 
-                            int degreesOfFreedom = normalParamsKey.MoCt - 3;
+                            //int degreesOfFreedom = normalParamsKey.MoCt - 3;
+
+                            double degreesOfFreedomAsDouble = mlra.Regression.GetDegreesOfFreedom(mlra.NumberOfSamples);
+                            int degreesOfFreedom = Convert.ToInt32(degreesOfFreedomAsDouble);
+
+                            //if (degreesOfFreedom != 9)
+                            //{
+                            //    Log.Warning($"Multivariable regression. DOF expected to be 9. is: {degreesOfFreedom}");
+                            //}
+
+                            //if (degreesOfFreedom != dof)
+                            //{
+                            //    Console.WriteLine($"dof different. mlra.dof = {dof} expected = {degreesOfFreedom}");
+                            //}
 
                             double s = Math.Sqrt(fullYDataDailyAvg.Subtract(predictedAccord).Pow(2).Sum() / degreesOfFreedom);
 
@@ -505,8 +501,8 @@ namespace JitTopshelf.Scheduled
                             double tCriticalFivePercent = 2.262156;
                             double tCriticalTenPercent = 1.833113;
 
-                            bool myTestHdd = Math.Abs(tStatisticHdd) > tCriticalTenPercent;
-                            bool myTestCdd = Math.Abs(tStatisticCdd) > tCriticalTenPercent;
+                            bool myTestHdd = Math.Abs(tStatisticHdd) >= tCriticalTenPercent;
+                            bool myTestCdd = Math.Abs(tStatisticCdd) >= tCriticalTenPercent;
 
                             //if (myTestHdd != mlra.Coefficients[0].TTest.Significant && degreesOfFreedom != 9)
                             //{
@@ -527,20 +523,21 @@ namespace JitTopshelf.Scheduled
                             //{
                             //    accordResults.Add(accordResult);
                             //}
-                            if (myTestHdd &&
-                                myTestCdd &&
-                                mlra.Coefficients.All(x => x.Value > 0) &&
-                                mlra.Regression.Intercept > 0 &&
-                                r2Accord >= 0.7500)
+                            if (
+                                myTestHdd 
+                                && myTestCdd 
+                                && mlra.Coefficients.All(x => x.Value > 0) 
+                                && mlra.Regression.Intercept > 0
+                                //&& accordResult.R2Accord >= 0.75
+                                )
                             {
                                 accordResults.Add(accordResult);
                             }
                         }
                         catch (Exception e)
                         {
-                            Log.Debug($"Multiple Linear Regression Analysis exceptions are common when certain heating/cooling BPs and/or insignificant" +
-                                $"actual usage(Units from a Reading) provide insufficient data. " +
-                                $"AccID/UtilID/UnitID: {normalParamsKey.AccID}/{normalParamsKey.UtilID}/{normalParamsKey.UnitID} >> {e.Message} {e.StackTrace}");
+                            Log.Debug($"AccID/UtilID/UnitID: {normalParamsKey.AccID}/{normalParamsKey.UtilID}/{normalParamsKey.UnitID} >> " +
+                                $"MultipleLinearRegressionAnalysis Exception: {e.Message}");
                         }
                     }
                     else if (_pointPair.HeatingBalancePoint > 0)
@@ -556,7 +553,16 @@ namespace JitTopshelf.Scheduled
 
                         double r2Accord = new RSquaredLoss(1, fullYDataDailyAvg).Loss(predictedAccord);
 
-                        int degreesOfFreedom = normalParamsKey.MoCt - 2;
+                        //int degreesOfFreedom = normalParamsKey.MoCt - 2;
+
+                        double degreesOfFreedomAsDouble = regressionAccord.GetDegreesOfFreedom(readingsCount);
+                        int degreesOfFreedom = Convert.ToInt32(degreesOfFreedomAsDouble);
+
+                        //if (degreesOfFreedom != 10)
+                        //{
+                        //    Log.Warning($"Single variable regression. DOF expected to be 10. is: {degreesOfFreedom}");
+                        //}
+
                         double ssx = Math.Sqrt((avgHddsForEachReadingInYear.Subtract(avgHddsForEachReadingInYear.Mean())).Pow(2).Sum());
                         double s = Math.Sqrt(fullYDataDailyAvg.Subtract(predictedAccord).Pow(2).Sum() / degreesOfFreedom);
 
@@ -571,12 +577,12 @@ namespace JitTopshelf.Scheduled
                         double tCriticalFivePercent = 2.228138;
                         double tCriticalTenPercent = 1.812461;
 
-                        bool myTest = Math.Abs(tStatistic) > tCriticalTenPercent;
+                        bool myTest = Math.Abs(tStatistic) >= tCriticalTenPercent;
 
-                        TTest tTest = new TTest(
-                            estimatedValue: regressionAccord.Slope, standardError: seSubB, degreesOfFreedom: degreesOfFreedom,
-                            hypothesizedValue: hypothesizedValue, alternate: OneSampleHypothesis.ValueIsDifferentFromHypothesis
-                            );
+                        //TTest tTest = new TTest(
+                        //    estimatedValue: regressionAccord.Slope, standardError: seSubB, degreesOfFreedom: degreesOfFreedom,
+                        //    hypothesizedValue: hypothesizedValue, alternate: OneSampleHypothesis.ValueIsDifferentFromHypothesis
+                        //    );
 
                         //if (myTest != tTest.Significant)
                         //{
@@ -596,7 +602,11 @@ namespace JitTopshelf.Scheduled
                         //{
                         //    accordResults.Add(accordResult);
                         //}
-                        if (myTest && accordResult.B2 > 0 && r2Accord >= 0.7500)
+                        if (myTest 
+                            && accordResult.B2 > 0 
+                            && accordResult.Intercept > 0
+                            //&& r2Accord >= 0.7500
+                            )
                         {
                             accordResults.Add(accordResult);
                         }
@@ -613,7 +623,16 @@ namespace JitTopshelf.Scheduled
                         double[] predictedAccord = regressionAccord.Transform(avgCddsForEachReadingInYear);
                         double r2Accord = new RSquaredLoss(1, fullYDataDailyAvg).Loss(predictedAccord);
 
-                        int degreesOfFreedom = normalParamsKey.MoCt - 2;
+                        //int degreesOfFreedom = normalParamsKey.MoCt - 2;
+
+                        double degreesOfFreedomAsDouble = regressionAccord.GetDegreesOfFreedom(readingsCount);
+                        int degreesOfFreedom = Convert.ToInt32(degreesOfFreedomAsDouble);
+
+                        //if (degreesOfFreedom != 10)
+                        //{
+                        //    Log.Warning($"Single variable regression. DOF expected to be 10. is: {degreesOfFreedom}");
+                        //}
+
                         double ssx = Math.Sqrt(avgCddsForEachReadingInYear.Subtract(avgCddsForEachReadingInYear.Mean()).Pow(2).Sum());
                         double s = Math.Sqrt(fullYDataDailyAvg.Subtract(predictedAccord).Pow(2).Sum() / degreesOfFreedom);
 
@@ -625,12 +644,12 @@ namespace JitTopshelf.Scheduled
                         double tCriticalFivePercent = 2.22813885198627;
                         double tCriticalTenPercent = 1.812461;
 
-                        bool myTest = Math.Abs(tStatistic) > tCriticalTenPercent;
+                        bool myTest = Math.Abs(tStatistic) >= tCriticalTenPercent;
 
-                        TTest tTest = new TTest(
-                            estimatedValue: regressionAccord.Slope, standardError: seSubB, degreesOfFreedom: degreesOfFreedom,
-                            hypothesizedValue: hypothesizedValue, alternate: OneSampleHypothesis.ValueIsDifferentFromHypothesis
-                            );
+                        //TTest tTest = new TTest(
+                        //    estimatedValue: regressionAccord.Slope, standardError: seSubB, degreesOfFreedom: degreesOfFreedom,
+                        //    hypothesizedValue: hypothesizedValue, alternate: OneSampleHypothesis.ValueIsDifferentFromHypothesis
+                        //    );
 
                         //if (myTest != tTest.Significant)
                         //{
@@ -650,7 +669,11 @@ namespace JitTopshelf.Scheduled
                         //{
                         //    accordResults.Add(accordResult);
                         //}
-                        if (myTest && accordResult.B4 > 0 && r2Accord >= 0.7500)
+                        if (
+                            myTest 
+                            && accordResult.B4 > 0 
+                            //&& r2Accord >= 0.7500
+                            )
                         {
                             accordResults.Add(accordResult);
                         }
@@ -712,7 +735,7 @@ namespace JitTopshelf.Scheduled
         {
             Log.Information("Starting UpdateWthExpUsage()...");
 
-            string fromDateStartStr = $"{_fromDateStart.Month}-{_fromDateStart.Day}-{_fromDateStart.Year}";
+            //string fromDateStartStr = $"{_fromDateStart.Month}-{_fromDateStart.Day}-{_fromDateStart.Year}";
 
             int updateCount = 0;
             int insertCount = 0;
@@ -722,29 +745,49 @@ namespace JitTopshelf.Scheduled
             {
                 try
                 {
-                    List<ReadingsQueryResult> readings = _weatherRepository.GetReadingsForExpUsageUpdate(fromDateStartStr, normalParams);
+                    List<ReadingsQueryResult> readings = _weatherRepository.GetReadingsForExpUsageUpdate(_MoID, normalParams);
 
                     foreach (ReadingsQueryResult result in readings)
                     {
                         try
                         {
-                            if (!(normalParams.R2 > 0))
+                            if ((normalParams.R2 < Convert.ToDecimal(0.75)))
                             {
                                 bool exists = _weatherRepository.GetWthExpUsageExists(result.RdngID);
 
                                 if (exists)
                                 {
-                                    _weatherRepository.UpdateWthExpUsage(result.RdngID, result.Units.Value);
-                                    updateCount++;
-                                    Log.Debug($"Updated WthExpUsage (No Valid Model) >> RdngID: {result.RdngID} ExpUsage: {result.Units.Value} << " +
-                                        $"AccID/UtilID/UnitID: {result.AccID}/{result.UtilID}/{result.UnitID}.");
+                                    bool updateNoModel = _weatherRepository.UpdateWthExpUsage(result.RdngID, result.Units.Value);
+
+                                    if (updateNoModel)
+                                    {
+                                        updateCount++;
+                                        Log.Debug($"Updated WthExpUsage (No Valid Model) >> RdngID: {result.RdngID} ExpUsage: {result.Units.Value} << " +
+                                            $"AccID/UtilID/UnitID: {result.AccID}/{result.UtilID}/{result.UnitID}.");
+                                    }
+                                    else
+                                    {
+                                        failCount++;
+                                        Log.Error($"Failed attempt : Update WthExpUsage (No Valid Model) >> RdngID: {result.RdngID} ExpUsage: {result.Units.Value} << " +
+                                            $"AccID/UtilID/UnitID: {result.AccID}/{result.UtilID}/{result.UnitID}.");
+                                    }
                                 }
                                 else
                                 {
-                                    _weatherRepository.InsertWthExpUsage(result.RdngID, result.Units.Value);
-                                    insertCount++;
-                                    Log.Debug($"Inserted into WthExpUsage (No Valid Model) >> RdngID: {result.RdngID} ExpUsage: {result.Units.Value} << " +
-                                        $"AccID/UtilID/UnitID: {result.AccID}/{result.UtilID}/{result.UnitID}.");
+                                    bool insertNoModel = _weatherRepository.InsertWthExpUsage(result.RdngID, result.Units.Value);
+
+                                    if (insertNoModel)
+                                    {
+                                        insertCount++;
+                                        Log.Debug($"Inserted into WthExpUsage (No Valid Model) >> RdngID: {result.RdngID} ExpUsage: {result.Units.Value} << " +
+                                            $"AccID/UtilID/UnitID: {result.AccID}/{result.UtilID}/{result.UnitID}.");
+                                    }
+                                    else
+                                    {
+                                        failCount++;
+                                        Log.Error($"Failed attempt : Insert into WthExpUsage (No Valid Model) >> RdngID: {result.RdngID} ExpUsage: {result.Units.Value} << " +
+                                            $"AccID/UtilID/UnitID: {result.AccID}/{result.UtilID}/{result.UnitID}.");
+                                    }
                                 }
                                 continue;
                             }
@@ -761,7 +804,7 @@ namespace JitTopshelf.Scheduled
                             if (weatherDataList.Count != daysInReading)
                             {
                                 throw new Exception($"WeatherDataList.Count != daysInReading; WeatherDataList.Count = {weatherDataList.Count}, " +
-                                    $"daysInReading = {daysInReading}.");
+                                    $"daysInReading = {daysInReading}. Reading.EndDate = {result.DateEnd}");
                             }
 
                             BalancePointPair balancePointPair = new BalancePointPair()
@@ -793,25 +836,25 @@ namespace JitTopshelf.Scheduled
                         catch (Exception e)
                         {
                             failCount++;
-                            Log.Debug($"Failure.Cannot calculate ExpUsage for RdngID: {result.RdngID} >> {e.Message}");
+                            Log.Debug($"Failure. Cannot calculate ExpUsage for RdngID: {result.RdngID} >> {e.Message} {e.StackTrace}");
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-                    Log.Error($"{normalParams.AccID}/{normalParams.UtilID}/{normalParams.UnitID} {ex.Message}");
+                    Log.Error($"AccID/UtilID/UnitID: {normalParams.AccID}/{normalParams.UtilID}/{normalParams.UnitID} >> {ex.Message}");
                     Log.Debug($"{ex.StackTrace}");
                 }
             }
 
             if (failCount == 0)
             {
-                Log.Information($"Finished UpdateWthExpUsage() on Readings going back to {_fromDateStart.ToShortDateString()}. " +
+                Log.Information($"Finished UpdateWthExpUsage() on Readings going back to MoID: {_MoID}. " +
                     $"Inserts: {insertCount}, Updates: {updateCount}, Failures: {failCount}.");
             }
             else
             {
-                Log.Warning($"Finished UpdateWthExpUsage() on Readings goin back to {_fromDateStart.ToShortDateString()}. " +
+                Log.Warning($"Finished UpdateWthExpUsage() on Readings going back to MoID: {_MoID}. " +
                     $"Inserts: {insertCount}, Updates: {updateCount}, Failures: {failCount}.");
             }
         }
@@ -841,7 +884,7 @@ namespace JitTopshelf.Scheduled
             }
             else if (existed && !success)
             {
-                Log.Error($"FAILED attempt: Update WthExpUsage >> RdngID: {result.RdngID} WthExpUsage: {resultAsDecimal} ... B1: {result.B1} B2: " +
+                Log.Error($"Failed attempt: Update WthExpUsage >> RdngID: {result.RdngID} WthExpUsage: {resultAsDecimal} ... B1: {result.B1} B2: " +
                     $"{result.B2} B3: {result.B3} Hdd: {heatingCoolingDegreeDays.HDD} B4: {result.B4} B5: {result.B5} Cdd: {heatingCoolingDegreeDays.CDD} << " +
                     $"AccID/UtilID/UnitID: {result.AccID}/{result.UtilID}/{result.UnitID}.");
             }
@@ -853,7 +896,7 @@ namespace JitTopshelf.Scheduled
             }
             else if (!existed && !success)
             {
-                Log.Error($"FAILED attempt: Insert into WthExpUsage >> RdngID: {result.RdngID} WthExpUsage: {resultAsDecimal} ... B1: {result.B1} B2: " +
+                Log.Error($"Failed attempt: Insert into WthExpUsage >> RdngID: {result.RdngID} WthExpUsage: {resultAsDecimal} ... B1: {result.B1} B2: " +
                     $"{result.B2} B3: {result.B3} Hdd: {heatingCoolingDegreeDays.HDD} B4: {result.B4} B5: {result.B5} Cdd: {heatingCoolingDegreeDays.CDD} << " +
                     $"AccID/UtilID/UnitID: {result.AccID}/{result.UtilID}/{result.UnitID}.");
             }

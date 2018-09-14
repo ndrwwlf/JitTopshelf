@@ -36,6 +36,25 @@ namespace JitTopshelf.Repository
             return allZips;
         }
 
+        public DateTime GetEarliestDateNeededForWeatherDataFetching(int MoID)
+        {
+            DateTime earliestDate = new DateTime(2015, 1, 1);
+
+            string sql = @"select top(1)r.DateStart from Readings r
+                        join WthNormalParams wnp
+                        on wnp.AccID = r.AccID and wnp.UtilID = r.UtilID and wnp.UnitID = r.UnitID
+                        where r.MoID >= @MoID
+                        and r.DateStart is not null
+                        order by r.DateStart";
+
+            using (IDbConnection db = new SqlConnection(_jitWebData3ConnectionString))
+            {
+                earliestDate = db.Query<DateTime>(sql, new { MoID }).First();
+            }
+
+            return earliestDate;
+        }
+
         public bool InsertWeatherData(WeatherData weatherData)
         {
             string sql = @"
@@ -103,7 +122,7 @@ namespace JitTopshelf.Repository
             }
         }
 
-        public List<ReadingsQueryResult> GetReadings(string DateStart)
+        public List<ReadingsQueryResult> GetReadings(int MoID)
         {
             string DateEnd = GetMostRecentWeatherDataDate().AddDays(1).ToShortDateString();
             var data = new List<ReadingsQueryResult>();
@@ -119,18 +138,18 @@ namespace JitTopshelf.Repository
                             where not exists 
                                 (select weu.RdngID from WthExpUsage weu
                                     where weu.RdngID = r.RdngID)
-                            and r.DateStart >= @DateStart
+                            and r.MoID >= @MoID
                             and r.DateEnd <= @DateEnd
                             and wnp.R2 is not null 
                             order by DateStart asc";
 
             using (IDbConnection db = new SqlConnection(_jitWebData3ConnectionString))
             {
-                return db.Query<ReadingsQueryResult>(Sql, new { DateStart, DateEnd }).AsList();
+                return db.Query<ReadingsQueryResult>(Sql, new { MoID, DateEnd }).AsList();
             }
         }
 
-        public List<ReadingsQueryResult> GetReadingsForExpUsageUpdate(string DateStart, WthNormalParams normalParams)
+        public List<ReadingsQueryResult> GetReadingsForExpUsageUpdate(int MoID, WthNormalParams normalParams)
         {
             string DateEnd = GetMostRecentWeatherDataDate().AddDays(1).ToShortDateString();
             var data = new List<ReadingsQueryResult>();
@@ -147,14 +166,14 @@ namespace JitTopshelf.Repository
                             wnp.AccID = @AccID and
                             wnp.UtilID = @UtilID and
                             wnp.UnitID = @UnitID and
-                            r.DateStart >= @DateStart and
+                            r.MoID >= @MoID and
                             r.DateEnd <= @DateEnd
                             order by DateStart asc";
 
             using (IDbConnection db = new SqlConnection(_jitWebData3ConnectionString))
             {
                 return db.Query<ReadingsQueryResult>(Sql, new {
-                    normalParams.AccID, normalParams.UtilID, normalParams.UnitID, DateStart, DateEnd
+                    normalParams.AccID, normalParams.UtilID, normalParams.UnitID, MoID, DateEnd
                 }).AsList();
             }
         }

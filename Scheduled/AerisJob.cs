@@ -18,19 +18,21 @@ namespace JitTopshelf.Scheduled
         private AerisJobParams _aerisJobParams;
         private IWeatherRepository _weatherRepository;
 
-        private int expectedWthExpUsageInserts;
-        private int actualWthExpUsageInserts;
+        private int _expectedWthExpUsageInserts;
+        private int _actualWthExpUsageInserts;
 
-        private int expectedDailyWeatherDataInserts;
-        private int actualDailyWeatherDataInserts;
+        private int _expectedDailyWeatherDataInserts;
+        private int _actualDailyWeatherDataInserts;
 
-        private int expectedTotalWeatherDataEntries;
-        private int actualTotalWeatherDataEntries;
+        private int _expectedTotalWeatherDataEntries;
+        private int _actualTotalWeatherDataEntries;
 
-        private int expectedHistoricalWeatherDataInserts;
-        private int actualHistoricalWeatherDataInserts;
+        private int _expectedHistoricalWeatherDataInserts;
+        private int _actualHistoricalWeatherDataInserts;
 
-        private readonly DateTime fromDateStart = new DateTime(2015, 01, 01);
+        private DateTime _fromDateStart = new DateTime(2015, 01, 01);
+
+        private readonly int _MoID = 301;
 
         public void Execute(IJobExecutionContext context)
         {
@@ -39,11 +41,13 @@ namespace JitTopshelf.Scheduled
 
             Log.Information("\nWeather job starting...\n");
 
+            _fromDateStart = _weatherRepository.GetEarliestDateNeededForWeatherDataFetching(_MoID);
+
             GatherWeatherData();
 
             PopulateWthExpUsageTable();
 
-            Log.Information($"WeatherData was gathered and WthExpUsage calculated for Readings going back to {fromDateStart.ToShortDateString()}");
+            Log.Information($"WeatherData was gathered and WthExpUsage calculated for Readings going back to MoID: {_MoID}");
             Log.Information("\nWeather job finished.\n");
         }
 
@@ -56,7 +60,7 @@ namespace JitTopshelf.Scheduled
                 GatherHistoricalWeatherData();
                 GatherDailyWeatherData(-1);
 
-                actualTotalWeatherDataEntries = _weatherRepository.GetWeatherDataRowCount();
+                _actualTotalWeatherDataEntries = _weatherRepository.GetWeatherDataRowCount();
             }
             catch (Exception ex)
             {
@@ -65,10 +69,10 @@ namespace JitTopshelf.Scheduled
             }
 
             Log.Information("Finished GatherWeatherData().");
-            Log.Information($"Expected Total WeatherData Entries: {expectedTotalWeatherDataEntries}, Actual: {actualTotalWeatherDataEntries}.\n");
+            Log.Information($"Expected Total WeatherData Entries: {_expectedTotalWeatherDataEntries}, Actual: {_actualTotalWeatherDataEntries}.\n");
 
-            expectedTotalWeatherDataEntries = 0;
-            actualTotalWeatherDataEntries = 0;
+            _expectedTotalWeatherDataEntries = 0;
+            _actualTotalWeatherDataEntries = 0;
         }
 
         private void GatherDailyWeatherData(int i)
@@ -76,13 +80,13 @@ namespace JitTopshelf.Scheduled
             DateTime targetDate = DateTime.Now.AddDays(i);
                 List<string> zipCodes = _weatherRepository.GetDistinctZipCodes();
 
-            Log.Information($"Starting GatherDailyWeatherData(int {i}) for targetDate: {targetDate.ToShortDateString()} and {zipCodes.Count} zip codes...");
+            Log.Information($"Starting GatherDailyWeatherData(int {i}) for targetDate: {targetDate} and {zipCodes.Count} ZipCodes...");
 
             foreach (string zipCode in zipCodes)
             {
                 if (!_weatherRepository.GetWeatherDataExistForZipAndDate(zipCode, targetDate))
                 {
-                    expectedDailyWeatherDataInserts++;
+                    _expectedDailyWeatherDataInserts++;
 
                     try
                     {
@@ -96,8 +100,8 @@ namespace JitTopshelf.Scheduled
                                 $"RDate: {weatherData.RDate.ToShortDateString()}, LowTmp: {weatherData.LowTmp}, HighTmp: {weatherData.HighTmp}, " +
                                 $"AvgTmp: {weatherData.AvgTmp}, DewPt: {weatherData.DewPt}");
 
-                            actualDailyWeatherDataInserts++;
-                            actualHistoricalWeatherDataInserts++;
+                            _actualDailyWeatherDataInserts++;
+                            _actualHistoricalWeatherDataInserts++;
                         }
                         else
                         {
@@ -115,10 +119,10 @@ namespace JitTopshelf.Scheduled
             };
 
             Log.Information($"Finished GatherDailyWeatherData for {targetDate.ToShortDateString()}. " +
-                $"Expected inserts: {expectedDailyWeatherDataInserts}, Actual inserts: {actualDailyWeatherDataInserts}.\n");
+                $"Expected inserts: {_expectedDailyWeatherDataInserts}, Actual inserts: {_actualDailyWeatherDataInserts}.\n");
 
-            expectedDailyWeatherDataInserts = 0;
-            actualDailyWeatherDataInserts = 0;
+            _expectedDailyWeatherDataInserts = 0;
+            _actualDailyWeatherDataInserts = 0;
         }
 
         private void GatherHistoricalWeatherData()
@@ -128,60 +132,63 @@ namespace JitTopshelf.Scheduled
             // yyyy, mm, dd
             //DateTime fromDate = new DateTime(2015, 01, 01);
 
-            int days = (int)fromDateStart.Subtract(today).TotalDays;
+            int days = (int)_fromDateStart.Subtract(today).TotalDays;
 
             int zipCount = _weatherRepository.GetDistinctZipCodes().Count;
 
-            expectedTotalWeatherDataEntries = ((days * -1) - 1) * zipCount;
-            actualTotalWeatherDataEntries = _weatherRepository.GetWeatherDataRowCount();
+            _expectedTotalWeatherDataEntries = ((days * -1) - 1) * zipCount;
+            _actualTotalWeatherDataEntries = _weatherRepository.GetWeatherDataRowCount();
 
-            if (expectedTotalWeatherDataEntries > actualTotalWeatherDataEntries)
+            if (_expectedTotalWeatherDataEntries > _actualTotalWeatherDataEntries)
             {
-                Log.Information($"Starting GatherHistoricalWeatherData(), from {fromDateStart} to yesterday. {days} days.");
+                Log.Information($"Starting GatherHistoricalWeatherData(), from {_fromDateStart} to yesterday. {days} days.");
 
                 for (int i = days; i <= -1; i++)
                 {
                     GatherDailyWeatherData(i);
                 };
 
-                expectedHistoricalWeatherDataInserts = expectedTotalWeatherDataEntries - actualTotalWeatherDataEntries + zipCount;
+                _expectedHistoricalWeatherDataInserts = _expectedTotalWeatherDataEntries - _actualTotalWeatherDataEntries + zipCount;
 
                 Log.Information($"Finished GatherHistoricalWeatherData(). " +
-                    $"Expected inserts: {expectedHistoricalWeatherDataInserts}, Actual inserts: {actualHistoricalWeatherDataInserts}.\n");
+                    $"Expected inserts: {_expectedHistoricalWeatherDataInserts}, Actual inserts: {_actualHistoricalWeatherDataInserts}.\n");
 
-                expectedHistoricalWeatherDataInserts = 0;
-                actualHistoricalWeatherDataInserts = 0;
+                _expectedHistoricalWeatherDataInserts = 0;
+                _actualHistoricalWeatherDataInserts = 0;
             }
 
-            expectedTotalWeatherDataEntries += zipCount;
+            _expectedTotalWeatherDataEntries += zipCount;
         }
 
         private void PopulateWthExpUsageTable()
         {
             Log.Information("Starting PopulateWthExpUsage()...");
 
-            string fromDateStartStr = $"{fromDateStart.Month}-{fromDateStart.Day}-{fromDateStart.Year}";
+            string fromDateStartStr = $"{_fromDateStart.Month}-{_fromDateStart.Day}-{_fromDateStart.Year}";
 
             try
             {
-                List<ReadingsQueryResult> readings = _weatherRepository.GetReadings(fromDateStartStr);
+                List<ReadingsQueryResult> readings = _weatherRepository.GetReadings(_MoID);
 
-                expectedWthExpUsageInserts = readings.Count;
+                _expectedWthExpUsageInserts = readings.Count;
 
                 foreach (ReadingsQueryResult result in readings)
                 {
                     try
                     {
-                        if (!result.R2.HasValue || result.R2.Value > 1)
+                        if (!result.R2.HasValue 
+                            //|| result.R2.Value > 1 
+                            //|| result.R2 < 0
+                            )
                         {
                             continue;
                         }
 
                         if (result.R2.Value < 0.7500)
                         {
-                            bool successNoModel = _weatherRepository.InsertWthExpUsage(result.RdngID, result.Units.Value);
-                            actualWthExpUsageInserts++;
-                            if (successNoModel)
+                            bool successAndNoModel = _weatherRepository.InsertWthExpUsage(result.RdngID, result.Units.Value);
+                            _actualWthExpUsageInserts++;
+                            if (successAndNoModel)
                             {
                                 Log.Debug($"Inserted into WthExpUsage (No Weather Model) >> RdngID: {result.RdngID} ExpUsage: {result.Units.Value} << " +
                                             $"AccID/UtilID/UnitID: {result.AccID}/{result.UtilID}/{result.UnitID}, Actual Units: {result.Units}.");
@@ -207,7 +214,7 @@ namespace JitTopshelf.Scheduled
                         if (weatherDataList.Count != daysInReading)
                         {
                             throw new Exception($"WeatherDataList.Count != daysInReading; WeatherDataList.Count = {weatherDataList.Count}, " +
-                                $"daysInReading = {daysInReading}.");
+                                $"daysInReading = {daysInReading}. Reading.EndDate = {result.DateEnd}");
                         }
 
                         HeatingCoolingDegreeDays heatingCoolingDegreeDays = HeatingCoolingDegreeDaysValueOf(result, weatherDataList);
@@ -224,7 +231,7 @@ namespace JitTopshelf.Scheduled
                 int expectedTotalWthExpUsageEntries = _weatherRepository.GetExpectedWthExpUsageRowCount(fromDateStartStr);
                 int actualTotalWthExpUsageEntries = _weatherRepository.GetActualWthExpUsageRowCount();
 
-                Log.Information($"Finished PopulateWthExpUsage(). Expected inserts: {expectedWthExpUsageInserts}, Actual: {actualWthExpUsageInserts}");
+                Log.Information($"Finished PopulateWthExpUsage(). Expected inserts: {_expectedWthExpUsageInserts}, Actual: {_actualWthExpUsageInserts}");
                 Log.Information($"Expected WthExpUsage total entries: {expectedTotalWthExpUsageEntries}, Actual: {actualTotalWthExpUsageEntries}.\n");
 
             }
@@ -233,8 +240,8 @@ namespace JitTopshelf.Scheduled
                 Log.Error(ex.Message + " " + ex.StackTrace);
             }
 
-            expectedWthExpUsageInserts = 0;
-            actualWthExpUsageInserts = 0;
+            _expectedWthExpUsageInserts = 0;
+            _actualWthExpUsageInserts = 0;
         }
 
         private void DoCalculation(ReadingsQueryResult result, HeatingCoolingDegreeDays heatingCoolingDegreeDays)
@@ -251,7 +258,7 @@ namespace JitTopshelf.Scheduled
                     $"B3: {result.B3} Hdd: {heatingCoolingDegreeDays.HDD} B4: {result.B4} B5: {result.B5} Cdd: {heatingCoolingDegreeDays.CDD} " +
                     $"AccID/UtilID/UnitID: {result.AccID}/{result.UtilID}/{result.UnitID}, R2: {result.R2}.");
 
-                actualWthExpUsageInserts++;
+                _actualWthExpUsageInserts++;
             }
             else
             {
