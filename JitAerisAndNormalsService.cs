@@ -25,7 +25,7 @@ namespace JitTopshelf
             .MinimumLevel.Override("Quartz", LogEventLevel.Error)
             .Enrich.FromLogContext()
             //to outsite of project
-            .WriteTo.File(userDir + "/Logs/MasterLog.log", restrictedToMinimumLevel: LogEventLevel.Information, fileSizeLimitBytes: 512000, 
+            .WriteTo.File(userDir + "/Logs/MasterLog.log", restrictedToMinimumLevel: LogEventLevel.Information, fileSizeLimitBytes: 53687091, 
                             rollOnFileSizeLimit: true, retainedFileCountLimit : 2, shared: true)
             .WriteTo.RollingFile(userDir + "/Logs/Daily/log-{Date}.log", retainedFileCountLimit: 60, shared: true)
             .WriteTo.Console()

@@ -190,7 +190,8 @@ namespace JitTopshelf.Repository
                            join Accounts a on a.AccID = r.AccID
                            join Buildings b on b.BldID = a.BldID
                            where  r.DateStart >= @DateStart
-                              and r.DateEnd <= @DateEnd";
+                              and r.DateEnd <= @DateEnd
+                              and wnp.R2 is not null";
 
             using (IDbConnection db = new SqlConnection(_jitWebData3ConnectionString))
             {

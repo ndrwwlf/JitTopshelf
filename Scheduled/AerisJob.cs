@@ -186,17 +186,17 @@ namespace JitTopshelf.Scheduled
 
                         if (result.R2.Value < 0.7500)
                         {
-                            bool successAndNoModel = _weatherRepository.InsertWthExpUsage(result.RdngID, result.Units.Value);
+                            bool successAndNoModel = _weatherRepository.InsertWthExpUsage(result.RdngID, result.Units ?? 0);
                             _actualWthExpUsageInserts++;
                             if (successAndNoModel)
                             {
-                                Log.Debug($"Inserted into WthExpUsage (No Weather Model) >> RdngID: {result.RdngID} ExpUsage: {result.Units.Value} << " +
+                                Log.Debug($"Inserted into WthExpUsage (No Weather Model) >> RdngID: {result.RdngID} ExpUsage: {result.Units ?? 0} << " +
                                             $"AccID/UtilID/UnitID: {result.AccID}/{result.UtilID}/{result.UnitID}, Actual Units: {result.Units}.");
                             }
                             else
                             {
                                 Log.Error($"Failed attempt: Insert into WthExpUsage (No Weather Model) " +
-                                            $">> RdngID: {result.RdngID} ExpUsage: {result.Units.Value} << " +
+                                            $">> RdngID: {result.RdngID} ExpUsage: {result.Units ?? 0} << " +
                                             $"AccID/UtilID/UnitID: {result.AccID}/{result.UtilID}/{result.UnitID}, Actual Units: {result.Units}");
                             }
                             continue;

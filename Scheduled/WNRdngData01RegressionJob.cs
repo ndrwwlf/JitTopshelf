@@ -751,7 +751,7 @@ namespace JitTopshelf.Scheduled
                     {
                         try
                         {
-                            if ((normalParams.R2 < Convert.ToDecimal(0.75)))
+                            if (normalParams.R2 < Convert.ToDecimal(0.75))
                             {
                                 bool exists = _weatherRepository.GetWthExpUsageExists(result.RdngID);
 

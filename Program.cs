@@ -51,8 +51,8 @@ namespace JitTopshelf
                 config.SetDescription("WeatherJob calls Aeris for new Weather Data at 7:11 AM then finds new Readings and calculates their WthExpUsage. \n" +
                     "WNRdngData01RegressionJob fires at 7:00 PM. The WNRdngData01 stored procedure is executed to find new Acc/Util/UnitIDs in need of regression " +
                     "analysis. For each new Acc/Util/UnitID the regression model that has the highest R2 value and passes t tests with a confidence of 0.10 is found and inserted into/updated in WthNormalParams. \n" +
-                    "Logs in DailyLogs are restricted to Debug Level Logging and have max file count of 60." +
-                    "MasterLog is restricted to Information Level Logging and has a max file size of 512 Kb, and max file count of 2.");
+                    "Logs in DailyLogs are restricted to Debug-Level logging and have max file count of 60." +
+                    "MasterLog is restricted to Information-Level logging, has a max file size of 0.05 GB, and max file count of 2.");
             });
 
             var exitCode = (int) Convert.ChangeType(rc, rc.GetTypeCode());
