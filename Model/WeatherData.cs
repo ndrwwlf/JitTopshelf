@@ -8,13 +8,18 @@ namespace JitTopshelf.Model
 {
     public class WeatherData
     {
-        public int Id { get; set; }
-        public string StationId { get; set; }
+        public int WdID { get; set; }
+
+        public string StationID { get; set; }
+
         public string ZipCode { get; set; }
-        public DateTime RDate { get; set; }
+        
+        public string RDate { get; set; }
+
         public int? HighTmp { get; set; }
+
         public int? LowTmp { get; set; }
+
         public double? AvgTmp { get; set; }
-        public double? DewPt { get; set; }
     }
 }

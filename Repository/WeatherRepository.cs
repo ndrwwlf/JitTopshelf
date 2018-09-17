@@ -33,73 +33,128 @@ namespace JitTopshelf.Repository
                     "join Accounts as a on b.BldID = a.BldID " +
                     "join WthNormalParams as w on a.AccID = w.AccID").AsList();
             }
+
             return allZips;
         }
 
-        public DateTime GetEarliestDateNeededForWeatherDataFetching(int MoID)
+        public DateTime GetEarliestDateNeededForZipWeather(int MoID, string ZipCode)
         {
             DateTime earliestDate = new DateTime(2015, 1, 1);
 
             string sql = @"select top(1)r.DateStart from Readings r
                         join WthNormalParams wnp
                         on wnp.AccID = r.AccID and wnp.UtilID = r.UtilID and wnp.UnitID = r.UnitID
+						join Accounts a on wnp.AccID = a.AccID
+						join Buildings b on a.BldID = b.BldID
                         where r.MoID >= @MoID
+                        and b.Zip = @ZipCode
                         and r.DateStart is not null
                         order by r.DateStart";
 
             using (IDbConnection db = new SqlConnection(_jitWebData3ConnectionString))
             {
-                earliestDate = db.Query<DateTime>(sql, new { MoID }).First();
+                earliestDate = db.Query<DateTime>(sql, new { MoID, ZipCode }).First();
             }
 
             return earliestDate;
         }
 
-        public bool InsertWeatherData(WeatherData weatherData)
+        public int InsertWeatherData(WeatherData weatherData)
         {
-            string sql = @"
-            INSERT INTO [WeatherData] ([StationId], [ZipCode], [RDate], [HighTmp], [LowTmp], [AvgTmp], [DewPt]) 
-            VALUES (@StationId, @ZipCode, @RDate, @HighTmp, @LowTmp, @AvgTmp, @DewPT);
-            SELECT CAST(SCOPE_IDENTITY() as int)";
+            string sql = @"INSERT INTO [WeatherData] ([StationId], [RDate], [HighTmp], [LowTmp], [AvgTmp]) 
+                            VALUES (@StationId, @RDate, @HighTmp, @LowTmp, @AvgTmp);
+                            SELECT CAST(SCOPE_IDENTITY() as int)";
 
             using (IDbConnection db = new SqlConnection(_jitWeatherConnectionString))
             {
-                int rowsAffected = db.Execute(sql, new
-                {
-                    StationID = weatherData.StationId,
-                    ZipCode = weatherData.ZipCode,
-                    RDate = weatherData.RDate.ToShortDateString(),
-                    HighTmp = weatherData.HighTmp,
-                    LowTmp = weatherData.LowTmp,
-                    AvgTmp = weatherData.AvgTmp,
-                    DewPT = weatherData.DewPt
-                });
+                int WdID = db.Query<int>(sql, new
+                    {
+                        weatherData.StationID,
+                        weatherData.ZipCode,
+                        weatherData.RDate,
+                        weatherData.HighTmp,
+                        weatherData.LowTmp,
+                        weatherData.AvgTmp
+                    }
+                ).Single();
 
-                return (rowsAffected == 1);
+                return WdID;
             }
         }
 
-        public bool GetWeatherDataExistForZipAndDate(string zipCode, DateTime rDate)
+        public bool InsertZipDate(string Zip, string RDate, int WdID)
         {
-            bool exists;
+            string sql = @"insert into ZipDates (Zip, RDate, WdID) values (@Zip, @RDate, @WdID);";
 
             using (IDbConnection db = new SqlConnection(_jitWeatherConnectionString))
             {
-                DateTime date = Convert.ToDateTime(rDate.ToShortDateString());
-                exists = db.ExecuteScalar<bool>("select count(1) from WeatherData where ZipCode=@ZipCode AND RDate=@RDate",
-                    new { ZipCode = zipCode, RDate = date });
+                int rowsAffected = db.Execute(sql, new { Zip, RDate, WdID });
+
+                return rowsAffected == 1;
+            }
+        }
+
+
+        public bool GetWeatherDataForZipDateExists(string ZipCode, string RDate)
+        {
+            bool exists;
+
+            string sql = @"select count(1) from ZipDates join WeatherData on WeatherData.WdID = ZipDates.WdID 
+                            where ZipDates.Zip = @ZipCode and WeatherData.RDate = @RDate";
+
+            //DateTime RDateStr = Convert.ToDateTime(RDate.ToShortDateString());
+
+            using (IDbConnection db = new SqlConnection(_jitWeatherConnectionString))
+            {
+                exists = db.ExecuteScalar<bool>(sql, new { ZipCode, RDate });
             }
 
             return exists;
         }
 
-
-        public int GetWeatherDataRowCount()
+        public bool GetWeatherDataForStationAndDateExists(string StationID, string RDate)
         {
-            string sql = @"SELECT COUNT(ID) FROM [WeatherData] WHERE ZipCode IS NOT NULL";
+            bool exists;
+
+            string sql = @"select count(1) from WeatherData where StationID = @StationID and RDate = @RDate";
+
+            //DateTime RDateStr = Convert.ToDateTime(RDate.ToShortDateString());
+
+            using (IDbConnection db = new SqlConnection(_jitWeatherConnectionString))
+            {
+                exists = db.ExecuteScalar<bool>(sql, new { StationID, RDate });
+            }
+
+            return exists;
+        }
+
+        public int GetWdIDFromWeatherData(string StationID, string RDate)
+        {
+            string sql = @"select WdID from WeatherData where StationID = @StationID and RDate = @RDate";
+
+            using (IDbConnection db = new SqlConnection(_jitWeatherConnectionString))
+            {
+                return db.Query<int>(sql, new { StationID, RDate }).Single<int>();
+            }
+        }
+
+        public int GetZipDateRowCount()
+        {
+            string sql = @"select count(ZipDates.WdID) from ZipDates left outer join WeatherData on WeatherData.WdID = ZipDates.WdID";
+
             using (IDbConnection db = new SqlConnection(_jitWeatherConnectionString))
             {
                 return db.ExecuteScalar<int>(sql);
+            }
+        }
+
+        public int GetZipDateRowCountByZip(string ZipCode)
+        {
+            string sql = @"select count(ZipDates.WdID) from ZipDates left outer join WeatherData on WeatherData.WdID = ZipDates.WdID where ZipDates.Zip = @ZipCode";
+
+            using (IDbConnection db = new SqlConnection(_jitWeatherConnectionString))
+            {
+                return db.ExecuteScalar<int>(sql, new { ZipCode });
             }
         }
 
@@ -168,6 +223,7 @@ namespace JitTopshelf.Repository
                             wnp.UnitID = @UnitID and
                             r.MoID >= @MoID and
                             r.DateEnd <= @DateEnd
+                            and wnp.R2 is not null 
                             order by DateStart asc";
 
             using (IDbConnection db = new SqlConnection(_jitWebData3ConnectionString))
@@ -178,7 +234,7 @@ namespace JitTopshelf.Repository
             }
         }
 
-        public int GetExpectedWthExpUsageRowCount(string DateStart)
+        public int GetExpectedWthExpUsageRowCount(int MoID)
         {
             string DateEnd = GetMostRecentWeatherDataDate().AddDays(1).ToShortDateString();
 
@@ -189,13 +245,13 @@ namespace JitTopshelf.Repository
                                                     and wnp.UnitID = r.UnitID
                            join Accounts a on a.AccID = r.AccID
                            join Buildings b on b.BldID = a.BldID
-                           where  r.DateStart >= @DateStart
+                           where  r.MoID >= @MoID
                               and r.DateEnd <= @DateEnd
                               and wnp.R2 is not null";
 
             using (IDbConnection db = new SqlConnection(_jitWebData3ConnectionString))
             {
-                return db.ExecuteScalar<int>(sql, new { DateStart, DateEnd });
+                return db.ExecuteScalar<int>(sql, new { MoID, DateEnd });
             }
         }
 
@@ -212,8 +268,9 @@ namespace JitTopshelf.Repository
         {
             var data = new List<WeatherData>();
 
-            string Sql = @"SELECT ID, (RTRIM(StationId)) as StationId, (RTRIM(ZipCode)) as ZipCode, RDate, HighTmp, LowTmp, AvgTmp, DewPt FROM WeatherData  
-                             WHERE ZipCode = @ZipCode  AND RDATE >= @DateStart AND RDATE < @DateEnd ORDER BY ID";
+            string Sql = @"select wd.WdID, StationID, (RTRIM(zd.Zip)) as ZipCode, wd.RDate, HighTmp, LowTmp, AvgTmp from WeatherData wd 
+	                        join ZipDates zd on wd.WdID = zd.WdID
+                             WHERE Zip = @ZipCode  AND zd.RDate >= @DateStart and zd.RDate < @DateEnd";
 
             using (IDbConnection db = new SqlConnection(_jitWeatherConnectionString))
             {

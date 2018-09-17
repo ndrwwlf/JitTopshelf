@@ -20,47 +20,59 @@ namespace JitTopshelf.Scheduled
 
         private int _expectedWthExpUsageInserts;
         private int _actualWthExpUsageInserts;
+        
+        private int _expectedHistoricalWeatherDataInsertsForZip;
+        private int _actualHistoricalWeatherDataInsertsForZip;
 
-        private int _expectedDailyWeatherDataInserts;
-        private int _actualDailyWeatherDataInserts;
+        private int _expectedHistoricalZipDateInsertsForZip;
+        private int _actualHistoricalZipDateInsertsForZip;
 
-        private int _expectedTotalWeatherDataEntries;
-        private int _actualTotalWeatherDataEntries;
+        private int _expectedZipDateEntriesTotal;
+        private int _actualZipDateEntriesTotal;
 
-        private int _expectedHistoricalWeatherDataInserts;
-        private int _actualHistoricalWeatherDataInserts;
+        private int _actualWeatherDataEntriesTotal;
 
-        private DateTime _fromDateStart = new DateTime(2015, 01, 01);
+        private bool newZipsDailyGatherNeededForRegression;
 
         private readonly int _MoID = 301;
+
+        List<string> _allZips = new List<string>();
 
         public void Execute(IJobExecutionContext context)
         {
             _aerisJobParams = AerisJobParamsValueOf(context);
             _weatherRepository = _weatherRepositoryValueOf(_aerisJobParams);
 
-            Log.Information("\nWeather job starting...\n");
-
-            _fromDateStart = _weatherRepository.GetEarliestDateNeededForWeatherDataFetching(_MoID);
+            Log.Information("WeatherData and ExpUsage job starting...\n");
 
             GatherWeatherData();
 
             PopulateWthExpUsageTable();
 
-            Log.Information($"WeatherData was gathered and WthExpUsage calculated for Readings going back to MoID: {_MoID}");
-            Log.Information("\nWeather job finished.\n");
+            Log.Information($"\nWeatherData and ExpUsage job finished. " +
+                $"WeatherData was gathered and ExpUsage was calculated for Readings going back to MoID: {_MoID}.");
         }
 
-        private void GatherWeatherData()
+        public void ExecuteZipHistoryCheckOnlyForRegression(IJobExecutionContext context)
         {
-            Log.Information("Starting GatherWeatherData()...");
+            _aerisJobParams = AerisJobParamsValueOf(context);
+            _weatherRepository = _weatherRepositoryValueOf(_aerisJobParams);
+
+
+            Log.Information("Checking if Historical WeatherData is needed...");
 
             try
             {
-                GatherHistoricalWeatherData();
-                GatherDailyWeatherData(-1);
+                _allZips = _weatherRepository.GetDistinctZipCodes();
 
-                _actualTotalWeatherDataEntries = _weatherRepository.GetWeatherDataRowCount();
+                GatherHistoricalWeatherData(_allZips);
+
+                if (newZipsDailyGatherNeededForRegression)
+                {
+                    GatherDailyWeatherData(-1, _allZips);
+
+                    _actualZipDateEntriesTotal = _weatherRepository.GetZipDateRowCount();
+                }
             }
             catch (Exception ex)
             {
@@ -68,46 +80,108 @@ namespace JitTopshelf.Scheduled
                 Log.Error(ex.StackTrace);
             }
 
-            Log.Information("Finished GatherWeatherData().");
-            Log.Information($"Expected Total WeatherData Entries: {_expectedTotalWeatherDataEntries}, Actual: {_actualTotalWeatherDataEntries}.\n");
+            if (newZipsDailyGatherNeededForRegression)
+            {
+                Log.Information($"Finished GatherWeatherData(). " +
+                    $"Expected Total ZipDates Entries: {_expectedZipDateEntriesTotal}.. Actual: {_actualZipDateEntriesTotal}.\n");
+            }
 
-            _expectedTotalWeatherDataEntries = 0;
-            _actualTotalWeatherDataEntries = 0;
+            _expectedZipDateEntriesTotal = 0;
+            _actualZipDateEntriesTotal = 0;
         }
 
-        private void GatherDailyWeatherData(int i)
+        private void GatherWeatherData()
         {
-            DateTime targetDate = DateTime.Now.AddDays(i);
-                List<string> zipCodes = _weatherRepository.GetDistinctZipCodes();
+            Log.Information("Checking if Historical WeatherData is needed...");
 
-            Log.Information($"Starting GatherDailyWeatherData(int {i}) for targetDate: {targetDate} and {zipCodes.Count} ZipCodes...");
+            try
+            {
+                _allZips = _weatherRepository.GetDistinctZipCodes();
+
+                GatherHistoricalWeatherData(_allZips);
+
+                //Log.Information("Starting Daily WeatherData calls...");
+                GatherDailyWeatherData(-1, _allZips);
+
+                _actualZipDateEntriesTotal = _weatherRepository.GetZipDateRowCount();
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex.Message);
+                Log.Error(ex.StackTrace);
+            }
+
+            Log.Information($"Finished GatherWeatherData(). " +
+                $"Expected Total ZipDates Entries: {_expectedZipDateEntriesTotal}, Actual: {_actualZipDateEntriesTotal}.\n");
+
+            _expectedZipDateEntriesTotal = 0;
+            _actualZipDateEntriesTotal = 0;
+        }
+
+        private void GatherDailyWeatherData(int i, List<string> zipCodes)
+        {
+            int expectedDailyZipDateInserts = 0;
+            int actualDailyZipDateInserts= 0;
+            int expectedDailyWeatherDataInserts = 0;
+            int actualDailyWeatherDataInserts = 0;
+
+            string targetDate = DateTime.Now.AddDays(i).ToShortDateString();
+
+            if (zipCodes.Count > 1)
+            {
+                Log.Information($"Starting GatherDailyWeatherData(int {i}) for targetDate: {targetDate} and {zipCodes.Count} ZipCodes...");
+            }
+            else
+            {
+                Log.Information($"Starting GatherDailyWeatherData(int {i}) for targetDate: {targetDate}, Zip: {zipCodes.First().ToString()}...");
+            }
 
             foreach (string zipCode in zipCodes)
             {
-                if (!_weatherRepository.GetWeatherDataExistForZipAndDate(zipCode, targetDate))
+                if (!_weatherRepository.GetWeatherDataForZipDateExists(zipCode, targetDate))
                 {
-                    _expectedDailyWeatherDataInserts++;
+                    _expectedHistoricalZipDateInsertsForZip++;
+                    expectedDailyZipDateInserts++;
 
                     try
                     {
                         WeatherData weatherData = BuildWeatherData(zipCode, targetDate);
 
-                        bool success = _weatherRepository.InsertWeatherData(weatherData);
-
-                        if (success)
+                        if(!_weatherRepository.GetWeatherDataForStationAndDateExists(weatherData.StationID, targetDate))
                         {
-                            Log.Debug($"Inserted into WeatherData >> StationId: {weatherData.StationId}, Zip Code: {weatherData.ZipCode}, " +
-                                $"RDate: {weatherData.RDate.ToShortDateString()}, LowTmp: {weatherData.LowTmp}, HighTmp: {weatherData.HighTmp}, " +
-                                $"AvgTmp: {weatherData.AvgTmp}, DewPt: {weatherData.DewPt}");
+                            expectedDailyWeatherDataInserts++;
+                            _expectedHistoricalWeatherDataInsertsForZip++;
+                            try
+                            {
+                                weatherData.WdID = _weatherRepository.InsertWeatherData(weatherData);
+                            
+                                Log.Debug($"Inserted into WeatherData >> WdID: {weatherData.WdID}, StationId: {weatherData.StationID}, RDate: {weatherData.RDate}," +
+                                    $" LowTmp: {weatherData.LowTmp}, HighTmp: {weatherData.HighTmp}, AvgTmp: {weatherData.AvgTmp}.");
 
-                            _actualDailyWeatherDataInserts++;
-                            _actualHistoricalWeatherDataInserts++;
+                                actualDailyWeatherDataInserts++;
+                                _actualHistoricalWeatherDataInsertsForZip++;
+                                _actualWeatherDataEntriesTotal++;
+                            }
+                            catch (Exception e)
+                            {
+                                throw new Exception($"Failed attempt: insert into WeatherData >> WdID: {weatherData.WdID}, StationId: {weatherData.StationID}, " +
+                                    $"RDate: {weatherData.RDate}, LowTmp: {weatherData.LowTmp}, HighTmp: {weatherData.HighTmp}, " +
+                                    $"AvgTmp: {weatherData.AvgTmp}. {e.Message}");
+                            }
+
+                            if (InsertZipDate(zipCode, targetDate, weatherData.WdID))
+                            {
+                                actualDailyZipDateInserts++;
+                            }
                         }
                         else
                         {
-                            Log.Error($"Failed attempt: insert into WeatherData >> StationId: {weatherData.StationId}, Zip Code: {weatherData.ZipCode}, " +
-                                $"RDate: {weatherData.RDate.ToShortDateString()}, LowTmp: {weatherData.LowTmp}, HighTmp: {weatherData.HighTmp}, " +
-                                $"AvgTmp: {weatherData.AvgTmp}, DewPt: {weatherData.DewPt}");
+                            int WdID = _weatherRepository.GetWdIDFromWeatherData(weatherData.StationID, targetDate);
+
+                            if (InsertZipDate(zipCode, targetDate, WdID))
+                            {
+                                actualDailyZipDateInserts++;
+                            }
                         }
                     }
                     catch (Exception e)
@@ -118,53 +192,128 @@ namespace JitTopshelf.Scheduled
                 }
             };
 
-            Log.Information($"Finished GatherDailyWeatherData for {targetDate.ToShortDateString()}. " +
-                $"Expected inserts: {_expectedDailyWeatherDataInserts}, Actual inserts: {_actualDailyWeatherDataInserts}.\n");
+            if (zipCodes.Count > 1)
+            {
+                if (actualDailyWeatherDataInserts == expectedDailyWeatherDataInserts && actualDailyZipDateInserts == expectedDailyZipDateInserts)
+                {
+                    Log.Information($"Success >> Finished GatherDailyWeatherData for RDate: {targetDate}, " +
+                        $"WeatherData Inserts: {actualDailyWeatherDataInserts}, ZipDates Inserts: {actualDailyZipDateInserts}.");
+                }
+                else
+                {
+                    Log.Warning($"Finished GatherDailyWeatherData for RDate: {targetDate}. " +
+                        $"Expected WeatherData Inserts: {expectedDailyWeatherDataInserts}, Actual WeatherData Inserts: {actualDailyWeatherDataInserts}. \n" +
+                        $"Expected ZipDate Inserts: {expectedDailyZipDateInserts}, Actual ZipDates Inserts: {actualDailyZipDateInserts}.");
+                }
+            }
+            else
+            {
+                if (actualDailyWeatherDataInserts == expectedDailyWeatherDataInserts && actualDailyZipDateInserts == expectedDailyZipDateInserts)
+                {
+                    Log.Debug($"Success >> Finished GatherDailyWeatherData for Zip: {zipCodes.First().ToString()}, RDate: {targetDate}. " +
+                        $"WeatherData Inserts: {actualDailyWeatherDataInserts}, ZipDates Inserts: {actualDailyZipDateInserts}.");
+                }
+                else
+                {
+                    Log.Warning($"Finished GatherDailyWeatherData for Zip: {zipCodes.First().ToString()} on RDate: {targetDate}, \n" +
+                        $"Expected WeatherData Inserts: {expectedDailyWeatherDataInserts}, Actual: {actualDailyWeatherDataInserts} .. \n" +
+                        $"Expected ZipDates Inserts: {expectedDailyZipDateInserts}, Actual: {actualDailyZipDateInserts}. \n");
+                }
+            }
 
-            _expectedDailyWeatherDataInserts = 0;
-            _actualDailyWeatherDataInserts = 0;
+            expectedDailyWeatherDataInserts = 0;
+            actualDailyWeatherDataInserts = 0;
+            expectedDailyZipDateInserts = 0;
+            actualDailyZipDateInserts = 0;
         }
 
-        private void GatherHistoricalWeatherData()
+        private void GatherHistoricalWeatherData(List<string> zipCodes)
         {
+            int expectedTotalWeatherDataInserts = 0;
+            int actualTotalWeatherDataInserts = 0;
+
+            int expectedTotalZipDateInserts = 0;
+            int actualTotalZipDateInserts = 0;
+
             DateTime today = DateTime.Now;
 
             // yyyy, mm, dd
             //DateTime fromDate = new DateTime(2015, 01, 01);
 
-            int days = (int)_fromDateStart.Subtract(today).TotalDays;
-
-            int zipCount = _weatherRepository.GetDistinctZipCodes().Count;
-
-            _expectedTotalWeatherDataEntries = ((days * -1) - 1) * zipCount;
-            _actualTotalWeatherDataEntries = _weatherRepository.GetWeatherDataRowCount();
-
-            if (_expectedTotalWeatherDataEntries > _actualTotalWeatherDataEntries)
+            foreach (string Zip in zipCodes)
             {
-                Log.Information($"Starting GatherHistoricalWeatherData(), from {_fromDateStart} to yesterday. {days} days.");
+                DateTime zipFromDateStart = _weatherRepository.GetEarliestDateNeededForZipWeather(_MoID, Zip);
+                int days = (int)zipFromDateStart.Subtract(today).TotalDays;
 
-                for (int i = days; i <= -1; i++)
+                //int zipCount = _weatherRepository.GetDistinctZipCodes().Count;
+
+                int expectedZipDateEntriesForZip = (days * -1) - 1;
+
+                _expectedZipDateEntriesTotal += expectedZipDateEntriesForZip;
+
+                //_actualTotalZipDateEntries = _weatherRepository.GetZipDateRowCount();
+                int actualZipDateEntriesForZip = _weatherRepository.GetZipDateRowCountByZip(Zip);
+
+                int expectedZipDateInsertsForZip = expectedZipDateEntriesForZip - actualZipDateEntriesForZip;
+
+                if (expectedZipDateInsertsForZip > 0)
                 {
-                    GatherDailyWeatherData(i);
-                };
+                    newZipsDailyGatherNeededForRegression = true;
 
-                _expectedHistoricalWeatherDataInserts = _expectedTotalWeatherDataEntries - _actualTotalWeatherDataEntries + zipCount;
+                    Log.Information($"Starting GatherHistoricalWeatherData() for Zip: {Zip}, from {zipFromDateStart.ToShortDateString()} to yesterday. {days} days.");
 
-                Log.Information($"Finished GatherHistoricalWeatherData(). " +
-                    $"Expected inserts: {_expectedHistoricalWeatherDataInserts}, Actual inserts: {_actualHistoricalWeatherDataInserts}.\n");
+                    for (int i = days; i <= -1; i++)
+                    {
+                        GatherDailyWeatherData(i, new List<string>() { Zip });
+                    };
 
-                _expectedHistoricalWeatherDataInserts = 0;
-                _actualHistoricalWeatherDataInserts = 0;
+                    //_expectedHistoricalZipDateInserts = _expectedTotalZipDateEntries - _actualTotalZipDateEntries + _allZips.Count;
+
+                    Log.Information($"Finished GatherHistoricalWeatherData() for Zip: {Zip}. " +
+                        $"Expected New WeatherData Inserts: {_expectedHistoricalWeatherDataInsertsForZip} Actual: {_actualHistoricalWeatherDataInsertsForZip}.\n" +
+                        $"Expected ZipDates Inserts: {_expectedHistoricalZipDateInsertsForZip} Actual: {_actualHistoricalZipDateInsertsForZip}");
+
+                    expectedTotalWeatherDataInserts += _expectedHistoricalWeatherDataInsertsForZip;
+                    _expectedHistoricalWeatherDataInsertsForZip = 0;
+
+                    expectedTotalZipDateInserts += _expectedHistoricalZipDateInsertsForZip;
+                    _expectedHistoricalZipDateInsertsForZip = 0;
+
+                    actualTotalWeatherDataInserts += _actualHistoricalWeatherDataInsertsForZip;
+                    _actualHistoricalWeatherDataInsertsForZip = 0;
+
+                    actualTotalZipDateInserts += _actualHistoricalZipDateInsertsForZip;
+                    _actualHistoricalZipDateInsertsForZip = 0;
+                }
+
+                _expectedZipDateEntriesTotal += 1;
+            }
+        }
+
+        private bool InsertZipDate(string zipCode, string targetDate, int WdID)
+        {
+            _expectedHistoricalZipDateInsertsForZip++;
+
+            bool zipDateSuccess = _weatherRepository.InsertZipDate(zipCode, targetDate, WdID);
+
+            if (zipDateSuccess)
+            {
+                _actualHistoricalZipDateInsertsForZip++;
+                Log.Debug($"Inserted into ZipDates >> Zip: {zipCode}, {targetDate}, WdID: {WdID}");
+            }
+            else
+            {
+                Log.Error($"Failed Attempt: Insert into ZipDates >> Zip {zipCode}, {targetDate}, WdID: {WdID}");
             }
 
-            _expectedTotalWeatherDataEntries += zipCount;
+            return zipDateSuccess;
         }
 
         private void PopulateWthExpUsageTable()
         {
             Log.Information("Starting PopulateWthExpUsage()...");
 
-            string fromDateStartStr = $"{_fromDateStart.Month}-{_fromDateStart.Day}-{_fromDateStart.Year}";
+            //string fromDateStartStr = $"{_fromDateStart.Month}-{_fromDateStart.Day}-{_fromDateStart.Year}";
 
             try
             {
@@ -176,7 +325,7 @@ namespace JitTopshelf.Scheduled
                 {
                     try
                     {
-                        if (!result.R2.HasValue 
+                        if (!result.R2.HasValue
                             //|| result.R2.Value > 1 
                             //|| result.R2 < 0
                             )
@@ -187,9 +336,10 @@ namespace JitTopshelf.Scheduled
                         if (result.R2.Value < 0.7500)
                         {
                             bool successAndNoModel = _weatherRepository.InsertWthExpUsage(result.RdngID, result.Units ?? 0);
-                            _actualWthExpUsageInserts++;
+
                             if (successAndNoModel)
                             {
+                                _actualWthExpUsageInserts++;
                                 Log.Debug($"Inserted into WthExpUsage (No Weather Model) >> RdngID: {result.RdngID} ExpUsage: {result.Units ?? 0} << " +
                                             $"AccID/UtilID/UnitID: {result.AccID}/{result.UtilID}/{result.UnitID}, Actual Units: {result.Units}.");
                             }
@@ -214,7 +364,7 @@ namespace JitTopshelf.Scheduled
                         if (weatherDataList.Count != daysInReading)
                         {
                             throw new Exception($"WeatherDataList.Count != daysInReading; WeatherDataList.Count = {weatherDataList.Count}, " +
-                                $"daysInReading = {daysInReading}. Reading.EndDate = {result.DateEnd}");
+                                $"daysInReading = {daysInReading}. Reading.StartDate = {result.DateStart} Reading.EndDate = {result.DateEnd}");
                         }
 
                         HeatingCoolingDegreeDays heatingCoolingDegreeDays = HeatingCoolingDegreeDaysValueOf(result, weatherDataList);
@@ -223,21 +373,22 @@ namespace JitTopshelf.Scheduled
                     }
                     catch (Exception e)
                     {
-                        Log.Error($"Cannot calculate ExpUsage for RdngID: {result.RdngID} >> {e.Message}");
+                        Log.Error($"AccID/UtilID/UnitID: {result.AccID}/{result.UtilID}/{result.UnitID} >> " +
+                            $"Cannot calculate ExpUsage for RdngID: {result.RdngID} >> {e.Message}");
                         Log.Debug(e.StackTrace);
                     }
                 }
 
-                int expectedTotalWthExpUsageEntries = _weatherRepository.GetExpectedWthExpUsageRowCount(fromDateStartStr);
+                int expectedTotalWthExpUsageEntries = _weatherRepository.GetExpectedWthExpUsageRowCount(_MoID);
                 int actualTotalWthExpUsageEntries = _weatherRepository.GetActualWthExpUsageRowCount();
 
                 Log.Information($"Finished PopulateWthExpUsage(). Expected inserts: {_expectedWthExpUsageInserts}, Actual: {_actualWthExpUsageInserts}");
-                Log.Information($"Expected WthExpUsage total entries: {expectedTotalWthExpUsageEntries}, Actual: {actualTotalWthExpUsageEntries}.\n");
+                Log.Information($"Expected WthExpUsage total entries: {expectedTotalWthExpUsageEntries}, Actual: {actualTotalWthExpUsageEntries}.");
 
             }
             catch (Exception ex)
             {
-                Log.Error(ex.Message + " " + ex.StackTrace);
+                Log.Error($"Problem getting Readings >> {ex.Message} { ex.StackTrace}");
             }
 
             _expectedWthExpUsageInserts = 0;
@@ -316,43 +467,43 @@ namespace JitTopshelf.Scheduled
             return (AerisJobParams)schedulerContext.Get("aerisJobParams");
         }
 
-        private WeatherData BuildWeatherData(string zipCode, DateTime targetDate)
+        private WeatherData BuildWeatherData(string zipCode, string targetDate)
         {
-            AerisResult result = GetAerisResult(zipCode, targetDate);
+            var targetDateTime = DateTime.Parse(targetDate);
+            string aerisFromDate = targetDateTime.Date.ToString("MM/dd/yyyy");
+
+            AerisResult result = GetAerisResult(zipCode, aerisFromDate);
 
             Response response = result.Response.First();
             Summary summary = response.Periods.First().Summary;
 
             Temp temp = summary.Temp;
-            Dewpt dewpt = summary.Dewpt;
 
             WeatherData weatherData = new WeatherData
             {
-                StationId = response.Id,
+                StationID = response.Id,
                 ZipCode = zipCode,
                 RDate = targetDate,
                 HighTmp = temp.MaxF,
                 LowTmp = temp.MinF,
-                AvgTmp = temp.AvgF,
-                DewPt = dewpt.AvgF
+                AvgTmp = temp.AvgF
             };
 
             return weatherData;
         }
 
-        private AerisResult GetAerisResult(string zipCode, DateTime targetDate)
+        private AerisResult GetAerisResult(string zipCode, string targetDate)
         {
-            string fromDate = targetDate.Date.ToString("MM/dd/yyyy");
-            //Log.Information($"Calling Aeris for zip: {zipCode} and date: {fromDate}");
+            //string fromDate = targetDate.Date.ToString("MM/dd/yyyy");
 
             /* 
                 * example
             http://api.aerisapi.com/observations/summary/closest?p=94304&query=maxt:!NULL,maxdewpt:!NULL&from=12/03/2014&to=12/03/2014&fields=id,periods.summary.dateTimeISO,periods.summary.temp.maxF,periods.summary.temp.minF,periods.summary.temp.avgF,periods.summary.dewpt.avgF
             */
 
-            string rootUrl = $"http://api.aerisapi.com/observations/summary/closest?p={zipCode}&query=maxt:!NULL,maxdewpt:!NULL" +
-                $"&from={fromDate}&to={fromDate}&fields=id,periods.summary.dateTimeISO,periods.summary.temp.maxF,periods.summary.temp.minF," +
-                "periods.summary.temp.avgF,periods.summary.dewpt.avgF";
+            string rootUrl = $"http://api.aerisapi.com/observations/summary/closest?p={zipCode}&query=maxt:!NULL" +
+                $"&from={targetDate}&to={targetDate}" +
+                $"&fields=id,periods.summary.dateTimeISO,periods.summary.temp.maxF,periods.summary.temp.minF,periods.summary.temp.avgF";
 
             StringBuilder builder = new StringBuilder();
             builder.Append(rootUrl);

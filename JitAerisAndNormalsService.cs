@@ -28,6 +28,7 @@ namespace JitTopshelf
             .WriteTo.File(userDir + "/Logs/MasterLog.log", restrictedToMinimumLevel: LogEventLevel.Information, fileSizeLimitBytes: 53687091, 
                             rollOnFileSizeLimit: true, retainedFileCountLimit : 2, shared: true)
             .WriteTo.RollingFile(userDir + "/Logs/Daily/log-{Date}.log", retainedFileCountLimit: 60, shared: true)
+            .WriteTo.File(userDir + "/Logs/ErrorLog.log", restrictedToMinimumLevel: LogEventLevel.Warning, shared: true)
             .WriteTo.Console()
             .CreateLogger();
 

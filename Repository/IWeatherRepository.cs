@@ -11,15 +11,19 @@ namespace JitTopshelf.Repository
     public interface IWeatherRepository
     {
         List<string> GetDistinctZipCodes();
-        DateTime GetEarliestDateNeededForWeatherDataFetching(int MoID);
-        bool InsertWeatherData(WeatherData weatherData);
-        bool GetWeatherDataExistForZipAndDate(string ZipCode, DateTime rDate);
-        int GetWeatherDataRowCount();
+        DateTime GetEarliestDateNeededForZipWeather(int MoID, string ZipCode);
+        int InsertWeatherData(WeatherData weatherData);
+        bool InsertZipDate(string Zip, string RDate, int WdID);
+        bool GetWeatherDataForZipDateExists(string ZipCode, string RDate);
+        bool GetWeatherDataForStationAndDateExists(string StationID, string RDate);
+        int GetWdIDFromWeatherData(string StationID, string RDate);
+        int GetZipDateRowCount();
+        int GetZipDateRowCountByZip(string ZipCode);
         int GetWeatherDataRowCountByZip(string ZipCode);
         DateTime GetMostRecentWeatherDataDate();
         List<ReadingsQueryResult> GetReadings(int MoID);
         List<ReadingsQueryResult> GetReadingsForExpUsageUpdate(int MoID, WthNormalParams normalParams);
-        int GetExpectedWthExpUsageRowCount(string DateStart);
+        int GetExpectedWthExpUsageRowCount(int MoDI);
         int GetActualWthExpUsageRowCount();
         List<WeatherData> GetWeatherDataByZipStartAndEndDate(string ZipCode, DateTime DateStart, DateTime DateEnd);
         bool InsertWthExpUsage(int readingId, decimal value);

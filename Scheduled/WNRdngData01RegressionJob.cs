@@ -20,8 +20,7 @@ namespace JitTopshelf.Scheduled
     {
         private AerisJobParams _aerisJobParams;
         private IWeatherRepository _weatherRepository;
-
-        //readonly DateTime _fromDateStart = new DateTime(2015, 01, 15);
+        private AerisJob _aerisJob;
 
         private readonly int _MoID = 301;
 
@@ -29,10 +28,13 @@ namespace JitTopshelf.Scheduled
         {
             _aerisJobParams = AerisJobParamsValueOf(context);
             _weatherRepository = _weatherRepositoryValueOf(_aerisJobParams);
+            _aerisJob = new AerisJob();
 
-            Log.Information("Starting WNRdngData01RegressionJob...");
-            //var regressionWatch = System.Diagnostics.Stopwatch.StartNew();
+            Log.Information("Starting WNRdngData01RegressionJob...\n");
 
+            _aerisJob.ExecuteZipHistoryCheckOnlyForRegression(context);
+
+            _aerisJob = null;
             //_weatherRepository.ClearWthNormalParams();
 
             PopulateWthNormalParams();
@@ -40,18 +42,20 @@ namespace JitTopshelf.Scheduled
             //regressionWatch.Stop();
             //var t = regressionWatch.Elapsed;
             //Log.Information("Finished WNRdngData01RegressionJob. Time elapsed: " + t.ToString() +"\n\n");
-            Log.Information("Finished WNRdngData01RegressionJob. \n");
+            Log.Information("\nFinished WNRdngData01RegressionJob. \n");
         }
 
         private void PopulateWthNormalParams()
         {
-            Log.Information("Starting PopulateWthNormalParams()... ");
-
-            List<WNRdngData> allWNRdngData = _weatherRepository.GetAllReadingsFromStoredProcedure();
-
             List<WthNormalParams> newNormalParamsList = new List<WthNormalParams>();
 
             List<WthNormalParams> modelsWithNotTwelveReadings = new List<WthNormalParams>();
+            List<WthNormalParams> modelsWithReadingOrWeatherIssues = new List<WthNormalParams>();
+            List<WthNormalParams> modelsWithOtherIssues = new List<WthNormalParams>();
+
+            Log.Information("Starting PopulateWthNormalParams(). Searching WNRdngData01 stored procedure... ");
+
+            List<WNRdngData> allWNRdngData = _weatherRepository.GetAllReadingsFromStoredProcedure();
 
             var wNRdngDataGroups = allWNRdngData.GroupBy(s => new { s.AccID, s.UtilID, s.UnitID });
 
@@ -98,6 +102,9 @@ namespace JitTopshelf.Scheduled
 
                     if (allBalancePointStatsFromYear.Count == 0)
                     {
+                        Log.Error($"AccID/UtilID/UnitID: {normalParams.AccID}/{normalParams.UtilID}/{normalParams.UnitID} >> " +
+                            $"Why are there no BalancePointStatsFromYear?");
+
                         if (normalParamsExists)
                         {
                             success = UpdateOrInsertWthNormalParams(normalParams);
@@ -196,24 +203,39 @@ namespace JitTopshelf.Scheduled
                     }
                     else if (!success)
                     {
+                        modelsWithOtherIssues.Add(normalParams);
                         failCount++;
                     }
                 }
                 catch (BadWNRdngDataException bdex)
                 {
                     failCount++;
-                    Log.Warning(bdex.Message);
+                    modelsWithReadingOrWeatherIssues.Add(normalParams);
+                    Log.Error(bdex.Message);
                 }
                 catch (Exception e)
                 {
                     failCount++;
-                    Log.Debug($"AccID/UtilID/UnitID: {normalParams.AccID}/{normalParams.UtilID}/{normalParams.UnitID} >> {e.Message} {e.StackTrace}");
+                    modelsWithOtherIssues.Add(normalParams);
+                    Log.Error($"AccID/UtilID/UnitID: {normalParams.AccID}/{normalParams.UtilID}/{normalParams.UnitID} >> {e.Message} {e.StackTrace}");
                 }
             }
 
             foreach(WthNormalParams normalParams in modelsWithNotTwelveReadings)
             {
-                Log.Warning($"AccID/UtilID/UnitID: {normalParams.AccID}/{normalParams.UtilID}/{normalParams.UnitID} >> This accepted model did not have 12 readings from SP. ");
+                Log.Warning($"AccID/UtilID/UnitID: {normalParams.AccID}/{normalParams.UtilID}/{normalParams.UnitID} >> " +
+                    $"Model was Accepted but did not have 12 readings from SP. ");
+            }
+
+            //foreach(WthNormalParams normalParams in modelsWithReadingOrWeatherIssues)
+            //{
+            //    Log.Warning($"AccID/UtilID/UnitID: {normalParams.AccID}/{normalParams.UtilID}/{normalParams.UnitID} >> No model found. " +
+            //        $"Readings had Bad/Null data from SP.");
+            //}
+
+            foreach (WthNormalParams normalParams in modelsWithOtherIssues)
+            {
+                Log.Error($"AccID/UtilID/UnitID: {normalParams.AccID}/{normalParams.UtilID}/{normalParams.UnitID} >> No model found. See daily log for more detail.");
             }
 
             if (failCount == 0)
@@ -222,7 +244,7 @@ namespace JitTopshelf.Scheduled
             }
             else
             {
-                Log.Error($"Finished PopulateWthNormalParams(). Rows Updated: {updateCount}. Rows Inserted: {insertCount}. Failures: {failCount}");
+                Log.Warning($"Finished PopulateWthNormalParams() with failures. Rows Updated: {updateCount}. Rows Inserted: {insertCount}. Failures: {failCount}");
             }
 
             //UpdateWthExpUsage(newNormalParamsList);
@@ -234,7 +256,7 @@ namespace JitTopshelf.Scheduled
 
             DateTime _yearOfReadsDateStart = wNRdngData.First().DateStart;
             DateTime _yearOfReadsDateEnd = wNRdngData.Last().DateEnd;
-            int _readingsCount = wNRdngData.First().MoID;
+            int _readingsCount = wNRdngData.First().MoCt;
             int daysInYear = 0;
 
             bool badData = false;
@@ -244,7 +266,7 @@ namespace JitTopshelf.Scheduled
                 if (reading.DateStart == DateTime.MinValue || reading.DateEnd == DateTime.MinValue)
                 {
                     badData = true;
-                    Log.Debug($"MoID: {reading.MoID} >> DateStart and/or DateEnd is null for " +
+                    Log.Warning($"MoID: {reading.MoID} >> DateStart and/or DateEnd is null for " +
                         $"AccID/UtilID/UnitID: {reading.AccID}/{reading.UtilID}/{reading.UnitID}");
                 }
                 else
@@ -474,7 +496,7 @@ namespace JitTopshelf.Scheduled
 
                             //int degreesOfFreedom = normalParamsKey.MoCt - 3;
 
-                            double degreesOfFreedomAsDouble = mlra.Regression.GetDegreesOfFreedom(mlra.NumberOfSamples);
+                            double degreesOfFreedomAsDouble = mlra.Regression.GetDegreesOfFreedom(readingsCount);
                             int degreesOfFreedom = Convert.ToInt32(degreesOfFreedomAsDouble);
 
                             //if (degreesOfFreedom != 9)
@@ -677,7 +699,7 @@ namespace JitTopshelf.Scheduled
                         {
                             accordResults.Add(accordResult);
                         }
-                    };
+                    }
                 }
                 catch (Exception e)
                 {
