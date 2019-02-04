@@ -35,7 +35,8 @@ namespace JitTopshelf.Scheduled
             _aerisJob.ExecuteZipHistoryCheckOnlyForRegression(context);
 
             _aerisJob = null;
-            //_weatherRepository.ClearWthNormalParams();
+
+            ////_weatherRepository.ClearWthNormalParams();
 
             PopulateWthNormalParams();
 
@@ -83,10 +84,10 @@ namespace JitTopshelf.Scheduled
                     MoCt = lastRead.MoCt
                 };
 
-                if (wNRdngList.Count != 12)
+                if (wNRdngList.Count % 12 != 0)
                 {
                     modelsWithNotTwelveReadings.Add(normalParams);
-                    Log.Warning($"wNRdngList != 12 .. {wNRdngList.Count} Readings. Still proceeding...");
+                    Log.Warning($"wNRdngList is not a multiple of 12 .. {wNRdngList.Count} Readings. Still proceeding...");
                 }
 
                 bool normalParamsExists = _weatherRepository.GetWthNormalParamsExists(normalParams);
@@ -207,11 +208,11 @@ namespace JitTopshelf.Scheduled
                         failCount++;
                     }
                 }
-                catch (BadWNRdngDataException bdex)
+                catch (BadWNRdngDataException bdEx)
                 {
                     failCount++;
                     modelsWithReadingOrWeatherIssues.Add(normalParams);
-                    Log.Error(bdex.Message);
+                    Log.Error(bdEx.Message + " " + bdEx.StackTrace);
                 }
                 catch (Exception e)
                 {
@@ -224,7 +225,7 @@ namespace JitTopshelf.Scheduled
             foreach(WthNormalParams normalParams in modelsWithNotTwelveReadings)
             {
                 Log.Warning($"AccID/UtilID/UnitID: {normalParams.AccID}/{normalParams.UtilID}/{normalParams.UnitID} >> " +
-                    $"Model was Accepted but did not have 12 readings from SP. ");
+                    $"Model was inserted but did not have (a multiple of) 12 readings from SP. ");
             }
 
             //foreach(WthNormalParams normalParams in modelsWithReadingOrWeatherIssues)

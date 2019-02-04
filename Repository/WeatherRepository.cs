@@ -29,9 +29,11 @@ namespace JitTopshelf.Repository
 
             using (IDbConnection db = new SqlConnection(_jitWebData3ConnectionString))
             {
-                allZips = db.Query<string>("select distinct b.Zip from Buildings as b " +
-                    "join Accounts as a on b.BldID = a.BldID " +
-                    "join WthNormalParams as w on a.AccID = w.AccID").AsList();
+                //allZips = db.Query<string>(@"select distinct b.Zip from Buildings as b
+                //                                join Accounts as a on b.BldID = a.BldID
+                //                                join WthNormalParams as w on a.AccID = w.AccID").AsList();
+
+                allZips = db.Query<string>(@"select distinct ZipW from WthNormalParams").AsList();
             }
 
             return allZips;
@@ -41,19 +43,27 @@ namespace JitTopshelf.Repository
         {
             DateTime earliestDate = new DateTime(2015, 1, 1);
 
+      //      string sql = @"select top(1)r.DateStart from Readings r
+      //                  join WthNormalParams wnp
+      //                  on wnp.AccID = r.AccID and wnp.UtilID = r.UtilID and wnp.UnitID = r.UnitID
+						//join Accounts a on wnp.AccID = a.AccID
+						//join Buildings b on a.BldID = b.BldID
+      //                  where r.MoID >= @MoID
+      //                  and b.Zip = @ZipCode
+      //                  and r.DateStart is not null
+      //                  order by r.DateStart";
+
             string sql = @"select top(1)r.DateStart from Readings r
                         join WthNormalParams wnp
                         on wnp.AccID = r.AccID and wnp.UtilID = r.UtilID and wnp.UnitID = r.UnitID
-						join Accounts a on wnp.AccID = a.AccID
-						join Buildings b on a.BldID = b.BldID
                         where r.MoID >= @MoID
-                        and b.Zip = @ZipCode
+                        and wnp.ZipW = @ZipCode
                         and r.DateStart is not null
                         order by r.DateStart";
 
             using (IDbConnection db = new SqlConnection(_jitWebData3ConnectionString))
             {
-                earliestDate = db.Query<DateTime>(sql, new { MoID, ZipCode }).First();
+                earliestDate = db.Query<DateTime>(sql, new { MoID, ZipCode }).FirstOrDefault();
             }
 
             return earliestDate;

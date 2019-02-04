@@ -240,9 +240,9 @@ namespace JitTopshelf.Scheduled
             // yyyy, mm, dd
             //DateTime fromDate = new DateTime(2015, 01, 01);
 
-            foreach (string Zip in zipCodes)
+            foreach (string zip in zipCodes)
             {
-                DateTime zipFromDateStart = _weatherRepository.GetEarliestDateNeededForZipWeather(_MoID, Zip);
+                DateTime zipFromDateStart = _weatherRepository.GetEarliestDateNeededForZipWeather(_MoID, zip);
                 int days = (int)zipFromDateStart.Subtract(today).TotalDays;
 
                 //int zipCount = _weatherRepository.GetDistinctZipCodes().Count;
@@ -252,7 +252,7 @@ namespace JitTopshelf.Scheduled
                 _expectedZipDateEntriesTotal += expectedZipDateEntriesForZip;
 
                 //_actualTotalZipDateEntries = _weatherRepository.GetZipDateRowCount();
-                int actualZipDateEntriesForZip = _weatherRepository.GetZipDateRowCountByZip(Zip);
+                int actualZipDateEntriesForZip = _weatherRepository.GetZipDateRowCountByZip(zip);
 
                 int expectedZipDateInsertsForZip = expectedZipDateEntriesForZip - actualZipDateEntriesForZip;
 
@@ -260,16 +260,16 @@ namespace JitTopshelf.Scheduled
                 {
                     newZipsDailyGatherNeededForRegression = true;
 
-                    Log.Information($"Starting GatherHistoricalWeatherData() for Zip: {Zip}, from {zipFromDateStart.ToShortDateString()} to yesterday. {days} days.");
+                    Log.Information($"Starting GatherHistoricalWeatherData() for Zip: {zip}, from {zipFromDateStart.ToShortDateString()} to yesterday. {days} days.");
 
                     for (int i = days; i <= -1; i++)
                     {
-                        GatherDailyWeatherData(i, new List<string>() { Zip });
+                        GatherDailyWeatherData(i, new List<string>() { zip });
                     };
 
                     //_expectedHistoricalZipDateInserts = _expectedTotalZipDateEntries - _actualTotalZipDateEntries + _allZips.Count;
 
-                    Log.Information($"Finished GatherHistoricalWeatherData() for Zip: {Zip}. " +
+                    Log.Information($"Finished GatherHistoricalWeatherData() for Zip: {zip}. " +
                         $"Expected New WeatherData Inserts: {_expectedHistoricalWeatherDataInsertsForZip} Actual: {_actualHistoricalWeatherDataInsertsForZip}.\n" +
                         $"Expected ZipDates Inserts: {_expectedHistoricalZipDateInsertsForZip} Actual: {_actualHistoricalZipDateInsertsForZip}");
 

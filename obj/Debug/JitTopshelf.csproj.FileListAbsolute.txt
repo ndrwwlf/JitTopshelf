@@ -80,6 +80,7 @@ C:\Users\andy\ProjectsMoved\JitTopshelf\JitTopshelf\JitTopshelf\bin\Debug\Serilo
 C:\Users\andy\ProjectsMoved\JitTopshelf\JitTopshelf\JitTopshelf\bin\Debug\Serilog.Sinks.File.xml
 C:\Users\andy\ProjectsMoved\JitTopshelf\JitTopshelf\JitTopshelf\bin\Debug\Serilog.Sinks.RollingFile.xml
 C:\Users\andy\ProjectsMoved\JitTopshelf\JitTopshelf\JitTopshelf\bin\Debug\Topshelf.xml
+C:\Users\andy\ProjectsMoved\JitTopshelf\JitTopshelf\JitTopshelf\obj\Debug\JitTopshelf.csprojAssemblyReference.cache
 C:\Users\andy\ProjectsMoved\JitTopshelf\JitTopshelf\JitTopshelf\obj\Debug\JitTopshelf.csproj.CoreCompileInputs.cache
 C:\Users\andy\ProjectsMoved\JitTopshelf\JitTopshelf\JitTopshelf\obj\Debug\JitTopshelf.csproj.CopyComplete
 C:\Users\andy\ProjectsMoved\JitTopshelf\JitTopshelf\JitTopshelf\obj\Debug\JitTopshelf.exe
