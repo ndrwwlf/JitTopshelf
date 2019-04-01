@@ -192,14 +192,28 @@ namespace JitTopshelf.Repository
             string DateEnd = GetMostRecentWeatherDataDate().AddDays(1).ToShortDateString();
             var data = new List<ReadingsQueryResult>();
 
-            string Sql = @"select r.RdngID, b.Zip, r.DateStart, r.DateEnd, r.Days, r.Units, 
+            //string Sql = @"select r.RdngID, b.Zip, r.DateStart, r.DateEnd, r.Days, r.Units, 
+            //                      wnp.AccID, wnp.UtilID, wnp.UnitID, wnp.B1, wnp.B2, wnp.B3, wnp.B4, wnp.B5, wnp.R2 
+            //                from Readings r 
+            //                join WthNormalParams wnp on wnp.AccID = r.AccID
+            //                                        and wnp.UtilID = r.UtilID
+            //                                        and wnp.UnitID = r.UnitID
+            //                join Accounts a on a.AccID = r.AccID
+            //                join Buildings b on b.BldID = a.BldID
+            //                where not exists 
+            //                    (select weu.RdngID from WthExpUsage weu
+            //                        where weu.RdngID = r.RdngID)
+            //                and r.MoID >= @MoID
+            //                and r.DateEnd <= @DateEnd
+            //                and wnp.R2 is not null 
+            //                order by DateStart asc";
+
+            string Sql = @"select r.RdngID, wnp.ZipW as Zip, r.DateStart, r.DateEnd, r.Days, r.Units, 
                                   wnp.AccID, wnp.UtilID, wnp.UnitID, wnp.B1, wnp.B2, wnp.B3, wnp.B4, wnp.B5, wnp.R2 
                             from Readings r 
                             join WthNormalParams wnp on wnp.AccID = r.AccID
                                                     and wnp.UtilID = r.UtilID
                                                     and wnp.UnitID = r.UnitID
-                            join Accounts a on a.AccID = r.AccID
-                            join Buildings b on b.BldID = a.BldID
                             where not exists 
                                 (select weu.RdngID from WthExpUsage weu
                                     where weu.RdngID = r.RdngID)
@@ -219,14 +233,29 @@ namespace JitTopshelf.Repository
             string DateEnd = GetMostRecentWeatherDataDate().AddDays(1).ToShortDateString();
             var data = new List<ReadingsQueryResult>();
 
-            string Sql = @"select r.RdngID, b.Zip, r.DateStart, r.DateEnd, r.Days, r.Units,   
+            //string Sql = @"select r.RdngID, b.Zip, r.DateStart, r.DateEnd, r.Days, r.Units,   
+            //                      wnp.AccID, wnp.UtilID, wnp.UnitID, wnp.B1, wnp.B2, wnp.B3, wnp.B4, wnp.B5
+            //                from Readings r 
+            //                join WthNormalParams wnp on wnp.AccID = r.AccID
+            //                                        and wnp.UtilID = r.UtilID
+            //                                        and wnp.UnitID = r.UnitID
+            //                join Accounts a on a.AccID = r.AccID
+            //                join Buildings b on b.BldID = a.BldID
+            //                where 
+            //                wnp.AccID = @AccID and
+            //                wnp.UtilID = @UtilID and
+            //                wnp.UnitID = @UnitID and
+            //                r.MoID >= @MoID and
+            //                r.DateEnd <= @DateEnd
+            //                and wnp.R2 is not null 
+            //                order by DateStart asc";
+
+            string Sql = @"select r.RdngID, wnp.ZipW as Zip, r.DateStart, r.DateEnd, r.Days, r.Units,   
                                   wnp.AccID, wnp.UtilID, wnp.UnitID, wnp.B1, wnp.B2, wnp.B3, wnp.B4, wnp.B5
                             from Readings r 
                             join WthNormalParams wnp on wnp.AccID = r.AccID
                                                     and wnp.UtilID = r.UtilID
                                                     and wnp.UnitID = r.UnitID
-                            join Accounts a on a.AccID = r.AccID
-                            join Buildings b on b.BldID = a.BldID
                             where 
                             wnp.AccID = @AccID and
                             wnp.UtilID = @UtilID and
@@ -248,13 +277,22 @@ namespace JitTopshelf.Repository
         {
             string DateEnd = GetMostRecentWeatherDataDate().AddDays(1).ToShortDateString();
 
+            //string sql = @"select count(r.RdngID) 
+            //               from Readings r 
+            //               join WthNormalParams wnp on wnp.AccID = r.AccID
+            //                                        and wnp.UtilID = r.UtilID
+            //                                        and wnp.UnitID = r.UnitID
+            //               join Accounts a on a.AccID = r.AccID
+            //               join Buildings b on b.BldID = a.BldID
+            //               where  r.MoID >= @MoID
+            //                  and r.DateEnd <= @DateEnd
+            //                  and wnp.R2 is not null";
+
             string sql = @"select count(r.RdngID) 
                            from Readings r 
                            join WthNormalParams wnp on wnp.AccID = r.AccID
                                                     and wnp.UtilID = r.UtilID
                                                     and wnp.UnitID = r.UnitID
-                           join Accounts a on a.AccID = r.AccID
-                           join Buildings b on b.BldID = a.BldID
                            where  r.MoID >= @MoID
                               and r.DateEnd <= @DateEnd
                               and wnp.R2 is not null";
@@ -448,6 +486,30 @@ namespace JitTopshelf.Repository
                 {
                     db.Execute(sql, new { p.AccID, p.UtilID, p.UnitID });
                 }
+            }
+        }
+
+        public List<WthNormalParams> GetAllParams()
+        {
+            List<WthNormalParams> allParams = new List<WthNormalParams>();
+
+            using (IDbConnection db = new SqlConnection(_jitWebData3ConnectionString))
+            {
+                allParams = db.Query<WthNormalParams>("Select * from WthNormalParams").AsList();
+            }
+
+            return allParams;
+        }
+
+        public string GetBZip(int AccID, int UtilID, int UnitID)
+        {
+            string sql = @"select b.zip from Buildings as b
+                           join Accounts as a on b.BldID = a.BldID
+                           where a.AccID = @AccID";
+
+            using (IDbConnection db = new SqlConnection(_jitWebData3ConnectionString))
+            {
+                return db.Query<string>(sql, new { AccID }).SingleOrDefault();
             }
         }
     }

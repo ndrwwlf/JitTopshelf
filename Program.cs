@@ -22,37 +22,16 @@ namespace JitTopshelf
                     s.WhenStarted(tc => tc.Start());
                     s.WhenStopped(tc => tc.Stop());
 
-                    //s.ScheduleQuartzJob(q =>
-                    //    q.WithJob(() =>
-                    //        JobBuilder.Create<AerisJob>().Build())
-                    //    .AddTrigger(() => 
-                    //        TriggerBuilder.Create()
-                    //            //.WithSchedule(CronScheduleBuilder.DailyAtHourAndMinute(7, 11))
-                    //            .StartNow()
-                    //            .WithSimpleSchedule(x => x.WithIntervalInSeconds(5).WithRepeatCount(0))
-                    //            .Build())
-                    //    );
-
-                    //s.ScheduleQuartzJob(q =>
-                    //    q.WithJob(() =>
-                    //        JobBuilder.Create<WNRdngData01RegressionJob>().Build())
-                    //    .AddTrigger(()
-                    //        => TriggerBuilder.Create()
-                    //            //.WithSchedule(CronScheduleBuilder.DailyAtHourAndMinute(19, 01))
-                    //            .WithSimpleSchedule(x => x.WithIntervalInSeconds(5).WithRepeatCount(0))
-                    //            .Build())
-                    //    );
                 });
 
                 config.RunAs(".\\workweek", "Jon23505");
+                //config.RunAs(".\\andy", "j");
                 config.StartAutomatically();
 
                 config.SetServiceName("WeatherRegressionService");
-                config.SetDescription("WeatherJob calls Aeris for new Weather Data at 7:11 AM then finds new Readings and calculates their WthExpUsage. \n" +
-                    "WNRdngData01RegressionJob fires at 7:00 PM. The WNRdngData01 stored procedure is executed to find new Acc/Util/UnitIDs in need of regression " +
-                    "analysis. For each new Acc/Util/UnitID the regression model that has the highest R2 value and passes t tests with a confidence of 0.10 is found and inserted into/updated in WthNormalParams. \n" +
-                    "Logs in DailyLogs are restricted to Debug-Level logging and have max file count of 60." +
-                    "MasterLog is restricted to Information-Level logging, has a max file size of 0.05 GB, and max file count of 2.");
+                config.SetDescription("Stop and Start the service to run the calls to Aeris Weather, calculate the best-fit regression model " +
+                    "for new WthNormalParams, and finally calculate ExpUsage for new Readings, The WeatherData and Regression jobs will " +
+                    "remain scheduled at their usual times: 7:11 AM and 7:00 PM, respectively. ExpUsage is calcuated after both jobs.");
             });
 
             var exitCode = (int) Convert.ChangeType(rc, rc.GetTypeCode());

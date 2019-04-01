@@ -3,7 +3,6 @@ using Accord.Math.Optimization.Losses;
 using Accord.Statistics;
 using Accord.Statistics.Analysis;
 using Accord.Statistics.Models.Regression.Linear;
-using Accord.Statistics.Testing;
 using JitTopshelf.Dao;
 using JitTopshelf.Model;
 using JitTopshelf.Repository;
@@ -16,6 +15,7 @@ using System.Linq;
 
 namespace JitTopshelf.Scheduled
 {
+    //[DisallowConcurrentExecution]
     public class WNRdngData01RegressionJob : IJob
     {
         private AerisJobParams _aerisJobParams;
@@ -28,6 +28,7 @@ namespace JitTopshelf.Scheduled
         {
             _aerisJobParams = AerisJobParamsValueOf(context);
             _weatherRepository = _weatherRepositoryValueOf(_aerisJobParams);
+
             _aerisJob = new AerisJob();
 
             Log.Information("Starting WNRdngData01RegressionJob...\n");
@@ -40,9 +41,12 @@ namespace JitTopshelf.Scheduled
 
             PopulateWthNormalParams();
 
-            //regressionWatch.Stop();
-            //var t = regressionWatch.Elapsed;
-            //Log.Information("Finished WNRdngData01RegressionJob. Time elapsed: " + t.ToString() +"\n\n");
+            _aerisJob = new AerisJob();
+
+            _aerisJob.PopulateWthExpUsageTableAfterRegression(context);
+
+            _aerisJob = null;
+
             Log.Information("\nFinished WNRdngData01RegressionJob. \n");
         }
 
@@ -84,10 +88,18 @@ namespace JitTopshelf.Scheduled
                     MoCt = lastRead.MoCt
                 };
 
+                if (wNRdngList.Count < 6)
+                {
+                    Log.Error("There are only {0} readings for AccID/UtilID/UnitID: {1}/{2}/{3}. No model found.", wNRdngList.Count, 
+                        normalParams.AccID, normalParams.UtilID, normalParams.UnitID);
+
+                    continue;
+                }
+
                 if (wNRdngList.Count % 12 != 0)
                 {
                     modelsWithNotTwelveReadings.Add(normalParams);
-                    Log.Warning($"wNRdngList is not a multiple of 12 .. {wNRdngList.Count} Readings. Still proceeding...");
+                    Log.Warning($"wNRdngList is not a multiple of 12 .. {wNRdngList.Count} Readings.\"MoCt\": {normalParams.MoCt}, still proceeding...");
                 }
 
                 bool normalParamsExists = _weatherRepository.GetWthNormalParamsExists(normalParams);
@@ -179,7 +191,7 @@ namespace JitTopshelf.Scheduled
                         normalParams.B5 = accord.CoolingBP;
                     }
 
-                    if (!Double.IsNaN(accord.R2Accord) && !Double.IsInfinity(accord.R2Accord))
+                    if (!double.IsNaN(accord.R2Accord) && !Double.IsInfinity(accord.R2Accord))
                     {
                         normalParams.R2 = decimal.Round(Convert.ToDecimal(accord.R2Accord), 9, MidpointRounding.AwayFromZero);
                     }
@@ -287,6 +299,11 @@ namespace JitTopshelf.Scheduled
             {
                 int daysInReading = reading.DateEnd.Subtract(reading.DateStart).Days;
 
+                if(daysInReading == 0)
+                {
+                    continue;
+                }
+
                 HeatingCoolingDegreeDays hcdd = new HeatingCoolingDegreeDays
                 {
                     CDD = 0.0,
@@ -366,11 +383,21 @@ namespace JitTopshelf.Scheduled
                 {
                     throw new Exception("WeatherData.AvgTmp is null for " + weatherData.ZipCode + " on " + weatherData.RDate);
                 }
-                else if (balancePointPair.CoolingBalancePoint > 0 && weatherData.AvgTmp >= balancePointPair.CoolingBalancePoint)
+                //else if (balancePointPair.CoolingBalancePoint > 0 && weatherData.AvgTmp >= balancePointPair.CoolingBalancePoint)
+                //{
+                //    hcdd.CDD += (weatherData.AvgTmp.Value - balancePointPair.CoolingBalancePoint);
+                //}
+                //else if (balancePointPair.HeatingBalancePoint > 0 && weatherData.AvgTmp < balancePointPair.HeatingBalancePoint)
+                //{
+                //    hcdd.HDD += (balancePointPair.HeatingBalancePoint - weatherData.AvgTmp.Value);
+                //}
+
+                if (balancePointPair.CoolingBalancePoint > 0 && weatherData.AvgTmp >= balancePointPair.CoolingBalancePoint)
                 {
                     hcdd.CDD += (weatherData.AvgTmp.Value - balancePointPair.CoolingBalancePoint);
                 }
-                else if (balancePointPair.HeatingBalancePoint > 0 && weatherData.AvgTmp < balancePointPair.HeatingBalancePoint)
+
+                if (balancePointPair.HeatingBalancePoint > 0 && weatherData.AvgTmp <= balancePointPair.HeatingBalancePoint)
                 {
                     hcdd.HDD += (balancePointPair.HeatingBalancePoint - weatherData.AvgTmp.Value);
                 }

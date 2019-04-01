@@ -36,5 +36,7 @@ namespace JitTopshelf.Repository
         bool UpdateWthExpUsage(int RdngID, decimal value);
 
         void ClearWthNormalParams();
+        List<WthNormalParams> GetAllParams();
+        string GetBZip(int AccID, int UtilID, int UnitID);
     }
 }

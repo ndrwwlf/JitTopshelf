@@ -13,6 +13,7 @@ using System.Threading.Tasks;
 
 namespace JitTopshelf.Scheduled
 {
+    //[DisallowConcurrentExecution]
     public class AerisJob : IJob
     {
         private AerisJobParams _aerisJobParams;
@@ -53,6 +54,14 @@ namespace JitTopshelf.Scheduled
                 $"WeatherData was gathered and ExpUsage was calculated for Readings going back to MoID: {_MoID}.");
         }
 
+        public void PopulateWthExpUsageTableAfterRegression(IJobExecutionContext context)
+        {
+            _aerisJobParams = AerisJobParamsValueOf(context);
+            _weatherRepository = _weatherRepositoryValueOf(_aerisJobParams);
+
+            PopulateWthExpUsageTable();
+        }
+
         public void ExecuteZipHistoryCheckOnlyForRegression(IJobExecutionContext context)
         {
             _aerisJobParams = AerisJobParamsValueOf(context);
@@ -67,6 +76,23 @@ namespace JitTopshelf.Scheduled
 
                 GatherHistoricalWeatherData(_allZips);
 
+                //int difZip = 0;
+                //List<WthNormalParams> allParams = _weatherRepository.GetAllParams();
+                //foreach (WthNormalParams param in allParams)
+                //{
+                //    string bZip = _weatherRepository.GetBZip(param.AccID, 0, 0);
+
+                //    if (bZip.Length > 0)
+                //    {
+                //        if (!bZip.Equals(param.ZipW))
+                //        {
+                //            difZip++;
+                //            Log.Information("Different Zip. bZip: {0}, wnpZip: {1}", bZip, param.ZipW);
+                //        }
+                //    }
+                //}
+                //Log.Information("Different zips: {0}", difZip);
+
                 if (newZipsDailyGatherNeededForRegression)
                 {
                     GatherDailyWeatherData(-1, _allZips);
@@ -76,8 +102,7 @@ namespace JitTopshelf.Scheduled
             }
             catch (Exception ex)
             {
-                Log.Error(ex.Message);
-                Log.Error(ex.StackTrace);
+                Log.Error(ex.Message + " " + ex.StackTrace);
             }
 
             if (newZipsDailyGatherNeededForRegression)
@@ -133,14 +158,14 @@ namespace JitTopshelf.Scheduled
             }
             else
             {
-                Log.Information($"Starting GatherDailyWeatherData(int {i}) for targetDate: {targetDate}, Zip: {zipCodes.First().ToString()}...");
+                //Log.Information($"Starting GatherDailyWeatherData(int {i}) for targetDate: {targetDate}, Zip: {zipCodes.First().ToString()}...");
             }
 
             foreach (string zipCode in zipCodes)
             {
                 if (!_weatherRepository.GetWeatherDataForZipDateExists(zipCode, targetDate))
                 {
-                    _expectedHistoricalZipDateInsertsForZip++;
+                    //_expectedHistoricalZipDateInsertsForZip++;
                     expectedDailyZipDateInserts++;
 
                     try
@@ -182,11 +207,15 @@ namespace JitTopshelf.Scheduled
                             {
                                 actualDailyZipDateInserts++;
                             }
+                            else
+                            {
+                                Log.Debug("ZipDate entry already exists for WdID: {0}, Zip:{1} and RDate:{2}", WdID, zipCode, targetDate);
+                            }
                         }
                     }
                     catch (Exception e)
                     {
-                        Log.Error($"Zip: {zipCode}, TargetDate: {targetDate} >>  {e.Message}");
+                        Log.Error($"Exception during building WeatherData. Zip: {zipCode}, TargetDate: {targetDate} >>  {e.Message}");
                         Log.Debug(e.StackTrace);
                     }
                 }
@@ -243,6 +272,13 @@ namespace JitTopshelf.Scheduled
             foreach (string zip in zipCodes)
             {
                 DateTime zipFromDateStart = _weatherRepository.GetEarliestDateNeededForZipWeather(_MoID, zip);
+
+                if (zipFromDateStart.Equals(default(DateTime)))
+                {
+                    Log.Error("Could not find first DateStart from any Readings data where ZipW = {0} and MoID >= {1}", zip, _MoID);
+                    continue;
+                }
+
                 int days = (int)zipFromDateStart.Subtract(today).TotalDays;
 
                 //int zipCount = _weatherRepository.GetDistinctZipCodes().Count;
@@ -309,7 +345,7 @@ namespace JitTopshelf.Scheduled
             return zipDateSuccess;
         }
 
-        private void PopulateWthExpUsageTable()
+        public void PopulateWthExpUsageTable()
         {
             Log.Information("Starting PopulateWthExpUsage()...");
 
@@ -345,7 +381,7 @@ namespace JitTopshelf.Scheduled
                             }
                             else
                             {
-                                Log.Error($"Failed attempt: Insert into WthExpUsage (No Weather Model) " +
+                                Log.Error($"Failed attempt: Insert into WthExpUsage (without an accepted weather model) " +
                                             $">> RdngID: {result.RdngID} ExpUsage: {result.Units ?? 0} << " +
                                             $"AccID/UtilID/UnitID: {result.AccID}/{result.UtilID}/{result.UnitID}, Actual Units: {result.Units}");
                             }
@@ -436,20 +472,30 @@ namespace JitTopshelf.Scheduled
                 {
                     throw new Exception($"WeatherData.AvgTmp is null for {weatherData.ZipCode} on {weatherData.RDate}");
                 }
-                else if (result.B5 > 0)
-                {
-                    if (weatherData.AvgTmp >= result.B5)
-                    {
-                        hcdd.CDD = hcdd.CDD + (weatherData.AvgTmp.Value - result.B5);
-                    }
+                //else if (result.B5 > 0)
+                //{
+                //    if (weatherData.AvgTmp >= result.B5)
+                //    {
+                //        hcdd.CDD = hcdd.CDD + (weatherData.AvgTmp.Value - result.B5);
+                //    }
 
-                }
-                else if (result.B3 > 0)
+                //}
+                //else if (result.B3 > 0)
+                //{
+                //    if (weatherData.AvgTmp <= result.B3)
+                //    {
+                //        hcdd.HDD = hcdd.HDD + (result.B3 - weatherData.AvgTmp.Value);
+                //    }
+                //}
+
+                if (result.B5 > 0 && weatherData.AvgTmp >= result.B5)
                 {
-                    if (weatherData.AvgTmp <= result.B3)
-                    {
-                        hcdd.HDD = hcdd.HDD + (result.B3 - weatherData.AvgTmp.Value);
-                    }
+                    hcdd.CDD = hcdd.CDD + (weatherData.AvgTmp.Value - result.B5);
+                }
+
+                if (result.B3 > 0 && weatherData.AvgTmp <= result.B3)
+                {
+                    hcdd.HDD = hcdd.HDD + (result.B3 - weatherData.AvgTmp.Value);
                 }
             }
 
@@ -501,7 +547,7 @@ namespace JitTopshelf.Scheduled
             http://api.aerisapi.com/observations/summary/closest?p=94304&query=maxt:!NULL,maxdewpt:!NULL&from=12/03/2014&to=12/03/2014&fields=id,periods.summary.dateTimeISO,periods.summary.temp.maxF,periods.summary.temp.minF,periods.summary.temp.avgF,periods.summary.dewpt.avgF
             */
 
-            string rootUrl = $"http://api.aerisapi.com/observations/summary/closest?p={zipCode}&query=maxt:!NULL" +
+            string rootUrl = $"http://api.aerisapi.com/observations/summary/closest?p={zipCode}&radius=100mi&query=maxt:!NULL" +
                 $"&from={targetDate}&to={targetDate}" +
                 $"&fields=id,periods.summary.dateTimeISO,periods.summary.temp.maxF,periods.summary.temp.minF,periods.summary.temp.avgF";
 
