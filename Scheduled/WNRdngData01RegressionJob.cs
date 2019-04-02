@@ -928,27 +928,35 @@ namespace JitTopshelf.Scheduled
 
             if (existed && success)
             {
-                Log.Debug($"Updated WthExpUsage >> RdngID: {result.RdngID} WthExpUsage: {resultAsDecimal} ... B1: {result.B1} B2: {result.B2} " +
-                    $"B3: {result.B3} Hdd: {heatingCoolingDegreeDays.HDD} B4: {result.B4} B5: {result.B5} Cdd: {heatingCoolingDegreeDays.CDD} << " +
-                    $"AccID/UtilID/UnitID: {result.AccID}/{result.UtilID}/{result.UnitID}.");
+                Log.Debug($"Updated WthExpUsage >> RdngID: {result.RdngID} WthExpUsage: {resultAsDecimal} (actual usage: {result.Units}) ... " +
+                    $"B1: {result.B1} Days: {result.Days}, " +
+                    $"B2: {result.B2} B3: {result.B3} Hdd: {heatingCoolingDegreeDays.HDD}," +
+                    $" B4: {result.B4} B5: {result.B5} Cdd: {heatingCoolingDegreeDays.CDD}, " +
+                    $"AccID/UtilID/UnitID: {result.AccID}/{result.UtilID}/{result.UnitID}, R2: {result.R2}.");
             }
             else if (existed && !success)
             {
-                Log.Error($"Failed attempt: Update WthExpUsage >> RdngID: {result.RdngID} WthExpUsage: {resultAsDecimal} ... B1: {result.B1} B2: " +
-                    $"{result.B2} B3: {result.B3} Hdd: {heatingCoolingDegreeDays.HDD} B4: {result.B4} B5: {result.B5} Cdd: {heatingCoolingDegreeDays.CDD} << " +
-                    $"AccID/UtilID/UnitID: {result.AccID}/{result.UtilID}/{result.UnitID}.");
+                Log.Error($"Failed attempt: Update WthExpUsage >> RdngID: {result.RdngID} WthExpUsage: {resultAsDecimal} (actual usage: {result.Units}) ... " +
+                    $"B1: {result.B1} Days: {result.Days}, " +
+                    $"B2: {result.B2} B3: {result.B3} Hdd: {heatingCoolingDegreeDays.HDD}, " +
+                    $"B4: {result.B4} B5: {result.B5} Cdd: {heatingCoolingDegreeDays.CDD}, " +
+                    $"AccID/UtilID/UnitID: {result.AccID}/{result.UtilID}/{result.UnitID}, R2: {result.R2}.");
             }
             else if (!existed && success)
             {
-                Log.Debug($"Inserted into WthExpUsage >> RdngID: {result.RdngID} WthExpUsage: {resultAsDecimal} ... B1: {result.B1} B2: {result.B2} " +
-                    $"B3: {result.B3} Hdd: {heatingCoolingDegreeDays.HDD} B4: {result.B4} B5: {result.B5} Cdd: {heatingCoolingDegreeDays.CDD} << " +
-                    $"AccID/UtilID/UnitID: {result.AccID}/{result.UtilID}/{result.UnitID}.");
+                Log.Debug($"Inserted into WthExpUsage >> RdngID: {result.RdngID} WthExpUsage: {resultAsDecimal} (actual usage: {result.Units}) ... " +
+                    $"B1: {result.B1} Days: {result.Days}, " +
+                    $"B2: {result.B2} B3: {result.B3} Hdd: {heatingCoolingDegreeDays.HDD}, " +
+                    $"B4: {result.B4} B5: {result.B5} Cdd: {heatingCoolingDegreeDays.CDD}, " +
+                    $"AccID/UtilID/UnitID: {result.AccID}/{result.UtilID}/{result.UnitID}, R2: {result.R2}.");
             }
             else if (!existed && !success)
             {
-                Log.Error($"Failed attempt: Insert into WthExpUsage >> RdngID: {result.RdngID} WthExpUsage: {resultAsDecimal} ... B1: {result.B1} B2: " +
-                    $"{result.B2} B3: {result.B3} Hdd: {heatingCoolingDegreeDays.HDD} B4: {result.B4} B5: {result.B5} Cdd: {heatingCoolingDegreeDays.CDD} << " +
-                    $"AccID/UtilID/UnitID: {result.AccID}/{result.UtilID}/{result.UnitID}.");
+                Log.Error($"Failed attempt: Insert into WthExpUsage >> RdngID: {result.RdngID} WthExpUsage: {resultAsDecimal} (actual usage: {result.Units}) ... " +
+                    $"B1: {result.B1} Days: {result.Days}, " +
+                    $"B2: {result.B2} B3: {result.B3} Hdd: {heatingCoolingDegreeDays.HDD}, " +
+                    $"B4: {result.B4} B5: {result.B5} Cdd: {heatingCoolingDegreeDays.CDD}, " +
+                    $"AccID/UtilID/UnitID: {result.AccID}/{result.UtilID}/{result.UnitID}, R2: {result.R2}.");
             }
 
             return new bool[] { success, existed };

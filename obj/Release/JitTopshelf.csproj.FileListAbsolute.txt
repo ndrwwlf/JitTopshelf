@@ -84,3 +84,4 @@ C:\Users\andy\ProjectsMoved\JitTopshelf\JitTopshelf\JitTopshelf\obj\Release\JitT
 C:\Users\andy\ProjectsMoved\JitTopshelf\JitTopshelf\JitTopshelf\obj\Release\JitTopshelf.csproj.CopyComplete
 C:\Users\andy\ProjectsMoved\JitTopshelf\JitTopshelf\JitTopshelf\obj\Release\JitTopshelf.exe
 C:\Users\andy\ProjectsMoved\JitTopshelf\JitTopshelf\JitTopshelf\obj\Release\JitTopshelf.pdb
+C:\Users\andy\ProjectsMoved\JitTopshelf\JitTopshelf\JitTopshelf\obj\Release\JitTopshelf.csprojAssemblyReference.cache

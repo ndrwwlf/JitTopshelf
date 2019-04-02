@@ -95,7 +95,7 @@ namespace JitTopshelf.Scheduled
 
                 if (newZipsDailyGatherNeededForRegression)
                 {
-                    GatherDailyWeatherData(-1, _allZips);
+                    GatherDailyWeatherData(-3, _allZips);
 
                     _actualZipDateEntriesTotal = _weatherRepository.GetZipDateRowCount();
                 }
@@ -126,7 +126,7 @@ namespace JitTopshelf.Scheduled
                 GatherHistoricalWeatherData(_allZips);
 
                 //Log.Information("Starting Daily WeatherData calls...");
-                GatherDailyWeatherData(-1, _allZips);
+                GatherDailyWeatherData(-3, _allZips);
 
                 _actualZipDateEntriesTotal = _weatherRepository.GetZipDateRowCount();
             }
@@ -283,7 +283,7 @@ namespace JitTopshelf.Scheduled
 
                 //int zipCount = _weatherRepository.GetDistinctZipCodes().Count;
 
-                int expectedZipDateEntriesForZip = (days * -1) - 1;
+                int expectedZipDateEntriesForZip = (days * -1) - 3;
 
                 _expectedZipDateEntriesTotal += expectedZipDateEntriesForZip;
 
@@ -298,7 +298,7 @@ namespace JitTopshelf.Scheduled
 
                     Log.Information($"Starting GatherHistoricalWeatherData() for Zip: {zip}, from {zipFromDateStart.ToShortDateString()} to yesterday. {days} days.");
 
-                    for (int i = days; i <= -1; i++)
+                    for (int i = days; i <= -3; i++)
                     {
                         GatherDailyWeatherData(i, new List<string>() { zip });
                     };
@@ -441,8 +441,10 @@ namespace JitTopshelf.Scheduled
 
             if (success)
             {
-                Log.Debug($"Inserted into WthExpUsage >> RdngID: {result.RdngID} WthExpUsage: {resultAsDecimal} ... B1: {result.B1} B2: {result.B2} " +
-                    $"B3: {result.B3} Hdd: {heatingCoolingDegreeDays.HDD} B4: {result.B4} B5: {result.B5} Cdd: {heatingCoolingDegreeDays.CDD} " +
+                Log.Debug($"Inserted into WthExpUsage >> RdngID: {result.RdngID} WthExpUsage: {resultAsDecimal} (actual usage: {result.Units}) ... " +
+                    $"B1: {result.B1} Days: {result.Days}, " +
+                    $"B2: {result.B2} B3: {result.B3} Hdd: {heatingCoolingDegreeDays.HDD}, " +
+                    $"B4: {result.B4} B5: {result.B5} Cdd: {heatingCoolingDegreeDays.CDD}, " +
                     $"AccID/UtilID/UnitID: {result.AccID}/{result.UtilID}/{result.UnitID}, R2: {result.R2}.");
 
                 _actualWthExpUsageInserts++;
